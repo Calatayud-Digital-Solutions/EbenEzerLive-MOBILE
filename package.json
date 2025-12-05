@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@voximplant/react-native-foreground-service": "file:./local-modules",
-    "expo": "~54.0.13",
+    "expo": "^54.0.27",
     "expo-av": "~16.0.7",
     "expo-crypto": "~15.0.7",
     "expo-dev-client": "~6.0.15",
