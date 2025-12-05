@@ -12,11 +12,16 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "UIBackgroundModes": ["audio"]
+        "UIBackgroundModes": [
+          "audio"
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       },
       "bundleIdentifier": "com.tuempresa.eben-ezer-live"
     },
@@ -31,11 +36,11 @@
       ],
       "playStoreUrl": "https://play.google.com/store/apps/details?id=com.tuempresa.eben_ezer_live"
     },
+    "owner": "calaespi",
     "extra": {
       "eas": {
-        "projectId": "1786d53f-538a-480f-9015-ac98f80716f9"
+        "projectId": "f5c0f329-f9f3-4c74-ac01-7a9ce59e1094"
       }
-    },
-    "owner": "adi_es"
+    }
   }
 }
