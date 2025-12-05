@@ -20,6 +20,11 @@ declare module "@voximplant/react-native-foreground-service" {
     createNotificationChannel(config: NotificationChannelConfig): Promise<void>;
     startService(config: ServiceConfig): Promise<void>;
     stopService(): Promise<void>;
+    getInstance(): {
+      createNotificationChannel(config: NotificationChannelConfig): Promise<void>;
+      startService(config: ServiceConfig): Promise<void>;
+      stopService(): Promise<void>;
+    };
   };
 
   export default VIForegroundService;

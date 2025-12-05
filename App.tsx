@@ -187,7 +187,7 @@ function AppContent() {
     setSocket(ws);
 
     ws.onopen = () => console.log("✅ WS conectado");
-    ws.onerror = (e) => console.warn("⚠️ WS error", e?.message || e);
+    ws.onerror = (e) => console.warn("⚠️ WS error", (e as any)?.message || e);
     ws.onclose = () => {
       console.warn("🔌 WS cerrado");
       if (!allowWSReconnect.current) return;
@@ -241,7 +241,10 @@ function AppContent() {
     async (data: any) => {
       setStatus("connecting");
       if (pcRef.current) pcRef.current.close();
-      const pc = new RTCPeerConnection(rtcConfig);
+      const pc = (new RTCPeerConnection(rtcConfig) as unknown as RTCPeerConnection & {
+        onicecandidate: (ev: any) => void;
+        ontrack: (ev: any) => void;
+      });
       pcRef.current = pc;
 
       pc.ontrack = (event: any) => {
