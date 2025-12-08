@@ -21,8 +21,11 @@
         "UIBackgroundModes": [
           "audio"
         ],
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "Esta app usa la cámara para videollamadas en vivo.",
+        "NSMicrophoneUsageDescription": "Esta app usa el micrófono para audio en transmisiones en vivo."
       },
+      "buildNumber": "4",
       "bundleIdentifier": "com.tuempresa.eben-ezer-live"
     },
     "android": {
