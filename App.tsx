@@ -211,7 +211,7 @@ function AppContent() {
         channelId: "stream_channel",
         id: 420,
         title: "EbenEzer Live",
-        text: "Transmitiendo audio en vivo 🎙️",
+        text: "Escuchando transmisión en vivo 🎧",
         icon: "ic_launcher",
       });
       fgStartedRef.current = true;
