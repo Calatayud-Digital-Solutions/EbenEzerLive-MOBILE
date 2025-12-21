@@ -26,7 +26,7 @@
         "NSMicrophoneUsageDescription": "Esta app usa el micrófono para audio en transmisiones en vivo.",
         "NSLocalNetworkUsageDescription": "Esta app necesita acceso a la red local para conectarse a servidores de streaming y WebRTC."
       },
-      "buildNumber": "8",
+      "buildNumber": "9",
       "bundleIdentifier": "com.tuempresa.eben-ezer-live"
     },
     "android": {
