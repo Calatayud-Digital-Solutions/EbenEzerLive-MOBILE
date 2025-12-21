@@ -35,6 +35,7 @@
         "WAKE_LOCK",
         "RECORD_AUDIO",
         "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_MICROPHONE",
         "FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ],
       "playStoreUrl": "https://play.google.com/store/apps/details?id=com.tuempresa.eben_ezer_live"

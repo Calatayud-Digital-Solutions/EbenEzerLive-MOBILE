@@ -7,6 +7,7 @@ import {
   Linking,
   AppState,
   PermissionsAndroid,
+  Alert,
   StyleSheet,
   Image,
   ScrollView,
@@ -91,7 +92,60 @@ function AppContent() {
   const channelCreatedRef = useRef(false);
   const fgStartedRef = useRef(false);
 
+
   const { AudioModeModule } = NativeModules;
+
+  // --- Helper: Request Audio Permissions ---
+  const requestAudioPermissions = useCallback(async (): Promise<boolean> => {
+    if (Platform.OS !== 'android') return true;
+    
+    try {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+        {
+          title: 'Permiso de Audio',
+          message: 'Esta aplicación necesita acceso al audio para recibir la transmisión en vivo.',
+          buttonNeutral: 'Preguntar Después',
+          buttonNegative: 'Cancelar',
+          buttonPositive: 'Aceptar',
+        }
+      );
+      
+      if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+        console.log('✅ Permiso de audio concedido');
+        return true;
+      } else {
+        console.warn('⚠️ Permiso de audio denegado');
+        return false;
+      }
+    } catch (err) {
+      console.error('❌ Error solicitando permisos:', err);
+      return false;
+    }
+  }, []);
+
+  // --- Helper: Safe Audio Module Call ---
+  const safeAudioModuleCall = useCallback((methodName: string, ...args: any[]) => {
+    try {
+      if (!AudioModeModule) {
+        console.warn(`⚠️ AudioModeModule no disponible para ${methodName}`);
+        return false;
+      }
+      
+      if (typeof AudioModeModule[methodName] !== 'function') {
+        console.warn(`⚠️ Método ${methodName} no existe en AudioModeModule`);
+        return false;
+      }
+      
+      AudioModeModule[methodName](...args);
+      console.log(`✅ ${methodName} ejecutado correctamente`);
+      return true;
+    } catch (error) {
+      console.error(`❌ Error en ${methodName}:`, error);
+      return false;
+    }
+  }, [AudioModeModule]);
+
 
   // --- Audio setup ---
   useEffect(() => {
@@ -157,7 +211,7 @@ function AppContent() {
         channelId: "stream_channel",
         id: 420,
         title: "EbenEzer Live",
-        text: "Transmitiendo audio en vivo 🎙️",
+        text: "Escuchando transmisión en vivo 🎧",
         icon: "ic_launcher",
       });
       fgStartedRef.current = true;
@@ -336,13 +390,9 @@ function AppContent() {
       if (Platform.OS === "android") {
         InCallManager.setSpeakerphoneOn(false);
         InCallManager.stop();
-        if (AudioModeModule?.resetAudioState) AudioModeModule.resetAudioState();
-        else if (AudioModeModule?.setModeNormal)
-          AudioModeModule.setModeNormal();
-        if (AudioModeModule?.stopAudioMonitoring)
-          AudioModeModule.stopAudioMonitoring();
-        if (AudioModeModule?.stopCleanupService)
-          AudioModeModule.stopCleanupService();
+        safeAudioModuleCall('resetAudioState');
+        safeAudioModuleCall('stopAudioMonitoring');
+        safeAudioModuleCall('stopCleanupService');
       }
 
       // Foreground service
@@ -364,14 +414,8 @@ function AppContent() {
       if (!language) {
         // Detener servicios si language es null
         if (Platform.OS === "android") {
-          try {
-            if (AudioModeModule?.stopAudioMonitoring)
-              AudioModeModule.stopAudioMonitoring();
-            if (AudioModeModule?.stopCleanupService)
-              AudioModeModule.stopCleanupService();
-          } catch (e) {
-            console.warn("⚠️ Error deteniendo servicios:", e);
-          }
+          safeAudioModuleCall('stopAudioMonitoring');
+          safeAudioModuleCall('stopCleanupService');
         }
         return;
       }
@@ -394,14 +438,9 @@ function AppContent() {
 
       // Servicios Android
       if (Platform.OS === "android") {
-        try {
-          if (AudioModeModule?.startAudioMonitoring)
-            AudioModeModule.startAudioMonitoring();
-          if (AudioModeModule?.startCleanupService)
-            AudioModeModule.startCleanupService();
-        } catch (e) {
-          console.warn("⚠️ Error iniciando servicios:", e);
-        }
+        console.log('🔊 Iniciando servicios de audio Android...');
+        safeAudioModuleCall('startAudioMonitoring');
+        safeAudioModuleCall('startCleanupService');
       }
 
       // Solicitar offer
@@ -567,46 +606,81 @@ function AppContent() {
                   onPress={async () => {
                     if (!active) return;
                     
-                    // Asegurar que allowWSReconnect esté habilitado
-                    allowWSReconnect.current = true;
-                    
-                    // Si el WebSocket no está abierto, recrearlo y esperar
-                    if (
-                      !wsRef.current ||
-                      wsRef.current.readyState !== WebSocket.OPEN
-                    ) {
-                      console.log(
-                        "🔄 WebSocket cerrado, recreando y esperando conexión…"
-                      );
-                      createSocket();
+                    try {
+                      // 1. Verificar permisos PRIMERO
+                      console.log('🔐 Verificando permisos de audio...');
+                      const hasPermission = await requestAudioPermissions();
                       
-                      // Esperar a que el WebSocket se abra (con timeout de 5s)
-                      const waitForConnection = new Promise<boolean>((resolve) => {
-                        const startTime = Date.now();
-                        const checkConnection = () => {
-                          if (wsRef.current?.readyState === WebSocket.OPEN) {
-                            console.log("✅ WebSocket conectado, procediendo…");
-                            resolve(true);
-                          } else if (Date.now() - startTime > 5000) {
-                            console.warn("⚠️ Timeout esperando WebSocket");
-                            resolve(false);
-                          } else {
-                            setTimeout(checkConnection, 100);
-                          }
-                        };
-                        checkConnection();
-                      });
-                      
-                      const connected = await waitForConnection;
-                      if (!connected) {
-                        console.error("❌ No se pudo conectar WebSocket");
+                      if (!hasPermission) {
+                        console.error('❌ Permisos de audio denegados');
+                        Alert.alert(
+                          'Permisos Requeridos',
+                          'La aplicación necesita acceso al audio para funcionar. Por favor, activa los permisos en la configuración.',
+                          [{ text: 'OK' }]
+                        );
                         return;
                       }
+                      
+                      // 2. Inicializar AudioModeModule de forma segura
+                      if (Platform.OS === 'android') {
+                        console.log('🔊 Inicializando módulos de audio...');
+                        safeAudioModuleCall('setModeNormal');
+                      }
+                      
+                      // 3. Asegurar que allowWSReconnect esté habilitado
+                      allowWSReconnect.current = true;
+                      
+                      // 4. Verificar/crear WebSocket
+                      if (
+                        !wsRef.current ||
+                        wsRef.current.readyState !== WebSocket.OPEN
+                      ) {
+                        console.log(
+                          "🔄 WebSocket cerrado, recreando y esperando conexión…"
+                        );
+                        createSocket();
+                        
+                        // Esperar a que el WebSocket se abra (con timeout de 5s)
+                        const waitForConnection = new Promise<boolean>((resolve) => {
+                          const startTime = Date.now();
+                          const checkConnection = () => {
+                            if (wsRef.current?.readyState === WebSocket.OPEN) {
+                              console.log("✅ WebSocket conectado, procediendo…");
+                              resolve(true);
+                            } else if (Date.now() - startTime > 5000) {
+                              console.warn("⚠️ Timeout esperando WebSocket");
+                              resolve(false);
+                            } else {
+                              setTimeout(checkConnection, 100);
+                            }
+                          };
+                          checkConnection();
+                        });
+                        
+                        const connected = await waitForConnection;
+                        if (!connected) {
+                          console.error("❌ No se pudo conectar WebSocket");
+                          Alert.alert(
+                            'Error de Conexión',
+                            'No se pudo conectar al servidor. Por favor, verifica tu conexión a internet.',
+                            [{ text: 'OK' }]
+                          );
+                          return;
+                        }
+                      }
+                      
+                      // 5. Establecer el idioma
+                      console.log(`🎧 Estableciendo idioma: ${code}`);
+                      setLanguage(code);
+                      
+                    } catch (error) {
+                      console.error('❌ Error crítico al presionar botón de idioma:', error);
+                      Alert.alert(
+                        'Error',
+                        'Ocurrió un error al iniciar la transmisión. Por favor, intenta de nuevo.',
+                        [{ text: 'OK' }]
+                      );
                     }
-                    
-                    // Ahora sí, establecer el idioma
-                    console.log(`🎧 Estableciendo idioma: ${code}`);
-                    setLanguage(code);
                   }}
                   disabled={!active}
                   style={[styles.langBtn, !active && { opacity: 0.4 }]}
