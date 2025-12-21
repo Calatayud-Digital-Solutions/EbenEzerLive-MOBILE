@@ -23,9 +23,10 @@
         ],
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "Esta app usa la cámara para videollamadas en vivo.",
-        "NSMicrophoneUsageDescription": "Esta app usa el micrófono para audio en transmisiones en vivo."
+        "NSMicrophoneUsageDescription": "Esta app usa el micrófono para audio en transmisiones en vivo.",
+        "NSLocalNetworkUsageDescription": "Esta app necesita acceso a la red local para conectarse a servidores de streaming y WebRTC."
       },
-      "buildNumber": "4",
+      "buildNumber": "8",
       "bundleIdentifier": "com.tuempresa.eben-ezer-live"
     },
     "android": {

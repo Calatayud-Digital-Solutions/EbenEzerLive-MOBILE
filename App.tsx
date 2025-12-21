@@ -26,7 +26,8 @@ import {
   RTCSessionDescription,
   RTCIceCandidate,
 } from "react-native-webrtc";
-import { Audio } from "expo-av";
+import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from "expo-av";
+import Constants from "expo-constants";
 import VIForegroundService from "@voximplant/react-native-foreground-service";
 import InCallManager from "react-native-incall-manager";
 
@@ -46,9 +47,24 @@ import {
   VolumeX,
 } from "lucide-react-native";
 import { Svg, Path } from "react-native-svg";
-import { TURN_USERNAME, TURN_CREDENTIAL } from "@env";
+import { TURN_USERNAME, TURN_CREDENTIAL, SIGNALING_URL as SIGNALING_URL_ENV } from "@env";
 
-const SIGNALING_URL = "wss://webrtc-live-ct59.onrender.com";
+const SIGNALING_URL =
+  (process?.env?.EXPO_PUBLIC_SIGNALING_URL as string) ||
+  SIGNALING_URL_ENV ||
+  (Constants?.expoConfig?.ios?.infoPlist as any)?.SIGNALING_URL ||
+  "wss://webrtc-live-ct59.onrender.com";
+
+const TURN_USERNAME_FINAL =
+  (process?.env?.EXPO_PUBLIC_TURN_USERNAME as string) ||
+  TURN_USERNAME ||
+  (Constants?.expoConfig?.ios?.infoPlist as any)?.TURN_USERNAME ||
+  "";
+const TURN_CREDENTIAL_FINAL =
+  (process?.env?.EXPO_PUBLIC_TURN_CREDENTIAL as string) ||
+  TURN_CREDENTIAL ||
+  (Constants?.expoConfig?.ios?.infoPlist as any)?.TURN_CREDENTIAL ||
+  "";
 
 export const rtcConfig = {
   iceServers: [
@@ -60,8 +76,8 @@ export const rtcConfig = {
         "turn:standard.relay.metered.ca:80?transport=tcp",
         "turn:standard.relay.metered.ca:443?transport=tcp",
       ],
-      username: TURN_USERNAME,
-      credential: TURN_CREDENTIAL,
+      username: TURN_USERNAME_FINAL,
+      credential: TURN_CREDENTIAL_FINAL,
     },
   ],
 };
@@ -80,11 +96,18 @@ function AppContent() {
     en: false,
     ro: false,
   });
+  useEffect(() => {
+    console.log("🌍 Idiomas activos actualizados:", activeLangs);
+  }, [activeLangs]);
   const [listenerCounts, setListenerCounts] = useState({ es: 0, en: 0, ro: 0 });
   const [language, setLanguage] = useState<string | null>(null);
   const [status, setStatus] = useState("idle");
   const [remoteStream, setRemoteStream] = useState<any>(null);
   const [speakerOn, setSpeakerOn] = useState(false);
+  const [wsState, setWsState] = useState<"init" | "open" | "error" | "close">(
+    "init"
+  );
+  const [wsError, setWsError] = useState<string | null>(null);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const candidateQueueRef = useRef<any[]>([]);
@@ -146,7 +169,16 @@ function AppContent() {
     }
   }, [AudioModeModule]);
 
-
+  useEffect(() => {
+    const turnServer = (rtcConfig.iceServers[1] as any) || {};
+    const hasTurnUser = !!turnServer.username;
+    const hasTurnCred = !!turnServer.credential;
+    console.log("🔐 TURN configurado:", {
+      usernamePresent: hasTurnUser,
+      credentialPresent: hasTurnCred,
+    });
+  }, []);
+  
   // --- Audio setup ---
   useEffect(() => {
     (async () => {
@@ -157,8 +189,8 @@ function AppContent() {
           allowsRecordingIOS: false,
           shouldDuckAndroid: false,
           playThroughEarpieceAndroid: false,
-          interruptionModeAndroid: 1,
-          interruptionModeIOS: 1,
+          interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+          interruptionModeIOS: InterruptionModeIOS.DoNotMix,
         });
         console.log("🎧 Audio configurado correctamente");
       } catch (e) {
@@ -240,9 +272,19 @@ function AppContent() {
     wsRef.current = ws;
     setSocket(ws);
 
-    ws.onopen = () => console.log("✅ WS conectado");
-    ws.onerror = (e) => console.warn("⚠️ WS error", (e as any)?.message || e);
+    ws.onopen = () => {
+      setWsState("open");
+      setWsError(null);
+      console.log("✅ WS conectado");
+    };
+    ws.onerror = (e) => {
+      const msg = (e as any)?.message || String(e);
+      setWsState("error");
+      setWsError(msg);
+      console.warn("⚠️ WS error", msg);
+    };
     ws.onclose = () => {
+      setWsState("close");
       console.warn("🔌 WS cerrado");
       if (!allowWSReconnect.current) return;
       console.log("♻️ Reintentando conexión WS en 4s…");
@@ -258,6 +300,7 @@ function AppContent() {
             en: !!data.active?.en,
             ro: !!data.active?.ro,
           });
+          console.log("📡 active-broadcasts recibido:", data.active);
         }
         if (data.type === "listeners-count") {
           setListenerCounts({
@@ -265,6 +308,7 @@ function AppContent() {
             en: data.listeners?.en || 0,
             ro: data.listeners?.ro || 0,
           });
+          console.log("👥 listeners-count:", data.listeners);
         }
         if (data.type === "offer") handleOffer(data);
         if (data.type === "candidate") handleCandidate(data);
@@ -287,6 +331,7 @@ function AppContent() {
       wsRef.current.readyState !== WebSocket.OPEN
     )
       return;
+    console.log("📩 request-offer:", language);
     wsRef.current.send(JSON.stringify({ type: "request-offer", language }));
     setStatus("requesting");
   }, [language]);
@@ -708,6 +753,12 @@ function AppContent() {
           </View>
         ) : (
           <View style={styles.audioContainer}>
+            {remoteStream ? (
+              <RTCView
+                style={styles.rtcView}
+                streamURL={remoteStream?.toURL?.()}
+              />
+            ) : null}
             <Animated.View
               style={[
                 styles.audioIconBox,
@@ -749,6 +800,21 @@ function AppContent() {
           </View>
         )}
         {/* --- SIEMPRE debajo, las cajas de info y contacto --- */}
+        {__DEV__ && (
+          <View style={styles.debugBox}>
+            <Text style={styles.debugTitle}>DEBUG</Text>
+            <Text style={styles.debugLine}>
+              WS: {wsState} {wsError ? `(${wsError})` : ""}
+            </Text>
+            <Text style={styles.debugLine}>
+              Idiomas activos: es {activeLangs.es ? "✓" : "×"} · en{" "}
+              {activeLangs.en ? "✓" : "×"} · ro {activeLangs.ro ? "✓" : "×"}
+            </Text>
+            <Text style={styles.debugLine}>
+              Estado: {status} · Idioma: {language ?? "-"}
+            </Text>
+          </View>
+        )}
         <View style={styles.infoBox}>
           <Text style={styles.infoText}>
             Bienvenidos a la transmisión en vivo con traducción simultánea de
@@ -1076,6 +1142,26 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "bold",
     letterSpacing: 0.5,
+  },
+  debugBox: {
+    backgroundColor: "#0f1624",
+    borderWidth: 1,
+    borderColor: "#334060",
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 10,
+    alignSelf: "stretch",
+  },
+  debugTitle: {
+    color: "#b7cced",
+    fontSize: 12,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  debugLine: {
+    color: "#e3f6fb",
+    fontSize: 12,
+    marginBottom: 2,
   },
   langStatusCircle: {
     width: 18,

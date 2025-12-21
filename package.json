@@ -34,6 +34,7 @@
     "@types/react": "~19.1.0",
     "@types/react-native": "^0.72.8",
     "@types/react-native-webrtc": "^1.75.9",
+    "eas-cli": "^16.28.0",
     "patch-package": "^8.0.1",
     "postinstall-postinstall": "^2.1.0",
     "react-native-dotenv": "^3.4.11",
