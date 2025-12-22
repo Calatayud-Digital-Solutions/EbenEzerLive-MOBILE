@@ -515,10 +515,9 @@ function AppContent() {
             // Solo detener servicios auxiliares, NO tocar el altavoz ni InCallManager.stop()
             if (AudioModeModule?.stopAudioMonitoring)
               AudioModeModule.stopAudioMonitoring();
-            if (AudioModeModule?.stopCleanupService)
-              AudioModeModule.stopCleanupService();
+            // AudioCleanupService stays ALIVE to catch onTaskRemoved if app is killed
             console.log("🔇 Audio services stopped, altavoz intacto");
-          }
+         }
         } catch (e) {
           console.warn("⚠️ Error manejando AppState audio:", e);
         }
@@ -753,12 +752,7 @@ function AppContent() {
           </View>
         ) : (
           <View style={styles.audioContainer}>
-            {remoteStream ? (
-              <RTCView
-                style={styles.rtcView}
-                streamURL={remoteStream?.toURL?.()}
-              />
-            ) : null}
+            {/* RTCView hidden - only needed for video streams */}
             <Animated.View
               style={[
                 styles.audioIconBox,

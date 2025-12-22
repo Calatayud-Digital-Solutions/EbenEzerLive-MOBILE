@@ -14,68 +14,20 @@ class AudioCleanupService : Service() {
 
     private val TAG = "AudioCleanupService"
     private lateinit var audioManager: AudioManager
-    private lateinit var activityManager: ActivityManager
-    private val handler = Handler(Looper.getMainLooper())
-    private var cleanupRunnable: Runnable? = null
-    private var isMonitoring = false
-
     override fun onCreate() {
         super.onCreate()
-        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-        Log.d(TAG, "AudioCleanupService created.")
+        try {
+            audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            Log.d(TAG, "AudioCleanupService created.")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in onCreate: ${e.message}")
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d(TAG, "AudioCleanupService started.")
-        
-        // Iniciar monitoreo continuo
-        startMonitoring()
-        
-        // Mantener el servicio vivo
+        Log.d(TAG, "AudioCleanupService started (Lifecycle Guard).")
+        // Start explicit sticky service to ensure it stays alive until explicitly stopped or task removed
         return START_STICKY
-    }
-
-    private fun startMonitoring() {
-        if (isMonitoring) return
-        isMonitoring = true
-        
-        cleanupRunnable = Runnable {
-            try {
-                // Verificar si la app principal está corriendo
-                if (!isAppRunning()) {
-                    Log.d(TAG, "App principal no detectada, limpiando audio...")
-                    resetAudioState()
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error en monitoreo: ${e.message}")
-            }
-            
-            // Programar siguiente verificación cada 3 segundos
-            if (isMonitoring) {
-                handler.postDelayed(cleanupRunnable!!, 3000)
-            }
-        }
-        
-        handler.postDelayed(cleanupRunnable!!, 3000)
-    }
-
-    private fun stopMonitoring() {
-        isMonitoring = false
-        cleanupRunnable?.let { handler.removeCallbacks(it) }
-        cleanupRunnable = null
-    }
-
-    private fun isAppRunning(): Boolean {
-        return try {
-            val runningTasks = activityManager.getRunningTasks(10)
-            runningTasks.any { taskInfo ->
-                taskInfo.baseActivity?.packageName == packageName
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error checking running tasks: ${e.message}")
-            false
-        }
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
@@ -87,7 +39,6 @@ class AudioCleanupService : Service() {
 
     override fun onDestroy() {
         Log.d(TAG, "AudioCleanupService destroyed.")
-        stopMonitoring()
         resetAudioState()
         super.onDestroy()
     }
@@ -98,12 +49,46 @@ class AudioCleanupService : Service() {
 
     private fun resetAudioState() {
         try {
+            // 1. Reset AudioManager state
             audioManager.mode = AudioManager.MODE_NORMAL
             audioManager.isSpeakerphoneOn = false
             audioManager.abandonAudioFocus(null)
+            
+            // 2. Stop InCallManager (which maintains its own audio routing)
+            stopInCallManager()
+            
             Log.d(TAG, "✅ Audio state successfully reset by service.")
         } catch (e: Exception) {
             Log.e(TAG, "❌ Error resetting audio state in service: ${e.message}")
+        }
+    }
+    
+    private fun stopInCallManager() {
+        try {
+            // Use reflection to access InCallManager and stop it
+            val incallManagerClass = Class.forName("com.zxcpoiu.incallmanager.InCallManagerModule")
+            
+            // Get the static instance or create method
+            val instanceField = try {
+                incallManagerClass.getDeclaredField("instance")
+            } catch (e: Exception) {
+                null
+            }
+            
+            if (instanceField != null) {
+                instanceField.isAccessible = true
+                val instance = instanceField.get(null)
+                
+                if (instance != null) {
+                    // Call stop method
+                    val stopMethod = incallManagerClass.getDeclaredMethod("stop", String::class.java)
+                    stopMethod.invoke(instance, "")
+                    Log.d(TAG, "✅ InCallManager stopped via reflection")
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "⚠️ Could not stop InCallManager via reflection: ${e.message}")
+            // Not critical - continue with AudioManager cleanup
         }
     }
 }

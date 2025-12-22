@@ -16,5 +16,11 @@
             android:exported="false"
             android:foregroundServiceType="microphone|mediaPlayback" />
 
+        <!-- Servicio de Limpieza de Audio (Lifecycle Guard) -->
+        <service
+            android:name="com.localmodules.audiomode.AudioCleanupService"
+            android:exported="false"
+            android:stopWithTask="false" />
+
     </application>
 </manifest>
