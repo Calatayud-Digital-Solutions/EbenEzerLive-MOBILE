@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "EbenEzerLiveExpo",
+    "name": "Traducción en vivo",
     "slug": "EbenEzerLiveExpo",
     "scheme": "eben-ezer-live",
     "version": "1.0.0",
@@ -18,6 +18,7 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
+        "CFBundleDisplayName": "Traducción en vivo",
         "UIBackgroundModes": [
           "audio"
         ],
@@ -27,10 +28,10 @@
         "NSLocalNetworkUsageDescription": "Esta app necesita acceso a la red local para conectarse a servidores de streaming y WebRTC."
       },
       "buildNumber": "9",
-      "bundleIdentifier": "com.tuempresa.eben-ezer-live"
+      "bundleIdentifier": "com.cds.eben-ezer-live"
     },
     "android": {
-      "package": "com.tuempresa.eben_ezer_live",
+      "package": "com.cds.eben_ezer_live",
       "permissions": [
         "INTERNET",
         "WAKE_LOCK",
