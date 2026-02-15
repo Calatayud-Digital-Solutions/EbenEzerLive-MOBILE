@@ -18,7 +18,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({ activeLangs,
         { code: "en", label: "Inglés", img: englishFlag },
         { code: "ro", label: "Rumano", img: romanianFlag },
       ].map(({ code, label, img }) => {
-        const active = (activeLangs as any)[code];
+        const active = activeLangs[code as keyof typeof activeLangs];
         return (
           <TouchableOpacity
             key={code}

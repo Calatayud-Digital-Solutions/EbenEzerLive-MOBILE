@@ -29,6 +29,7 @@ jest.mock('react-native-webrtc', () => ({
   RTCPeerConnection: jest.fn(),
   RTCSessionDescription: jest.fn(),
   RTCIceCandidate: jest.fn(),
+  MediaStream: jest.fn().mockImplementation(() => ({ toURL: () => '' })),
 }));
 
 // Mock foreground service
@@ -59,6 +60,7 @@ jest.mock('lucide-react-native', () => ({
   Volume2: 'Volume2',
   VolumeX: 'VolumeX',
   Radio: 'Radio',
+  Info: 'Info',
 }));
 
 // Mock SVG
@@ -69,6 +71,17 @@ jest.mock('react-native-svg', () => ({
   Stop: 'Stop',
   LinearGradient: 'LinearGradient',
 }));
+
+// Mock react-native-safe-area-context so children render in tests
+jest.mock('react-native-safe-area-context', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    SafeAreaProvider: ({ children }) => React.createElement(View, null, children),
+    SafeAreaView: ({ children }) => React.createElement(View, null, children),
+    useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+  };
+});
 
 // Mock NativeModules
 import { NativeModules } from 'react-native';

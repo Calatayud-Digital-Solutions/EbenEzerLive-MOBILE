@@ -9,6 +9,6 @@ describe('App Component', () => {
 
   it('renders correctly', () => {
     const { getByText } = render(<App />);
-    expect(getByText('TRANSMISIÓN EN VIVO')).toBeTruthy();
+    expect(getByText('Live translation')).toBeTruthy();
   });
 });

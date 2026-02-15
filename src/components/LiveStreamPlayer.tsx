@@ -1,10 +1,16 @@
-import React from 'react';
-import { View, TouchableOpacity, Text, Animated, StyleSheet } from 'react-native';
-import { RTCView } from "react-native-webrtc";
+import React from "react";
+import {
+  View,
+  TouchableOpacity,
+  Text,
+  Animated,
+  StyleSheet,
+} from "react-native";
+import { RTCView, MediaStream } from "react-native-webrtc";
 import { Volume2, VolumeX } from "lucide-react-native";
 
 interface LiveStreamPlayerProps {
-  remoteStream: any;
+  remoteStream: MediaStream | null;
   animScale: Animated.Value;
   stopListening: () => void;
   speakerOn: boolean;

@@ -23,31 +23,27 @@ import {
   RTCPeerConnection,
   RTCSessionDescription,
   RTCIceCandidate,
+  MediaStream,
 } from "react-native-webrtc";
 import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from "expo-av";
 import Constants from "expo-constants";
 import VIForegroundService from "@voximplant/react-native-foreground-service";
 import InCallManager from "react-native-incall-manager";
 
-import {
-  MapPin,
-  Phone,
-  Mail,
-  Clock,
-  PlayCircle,
-  Globe,
-  MessageCircle,
-} from "lucide-react-native";
-import { Svg, Path } from "react-native-svg";
+import { Info } from "lucide-react-native";
 import { TURN_USERNAME, TURN_CREDENTIAL, SIGNALING_URL as SIGNALING_URL_ENV } from "@env";
 
 import { LanguageSelector } from "./src/components/LanguageSelector";
 import { LiveStreamPlayer } from "./src/components/LiveStreamPlayer";
+import { ChurchInfoScreen } from "./src/components/ChurchInfoScreen";
 
 const { AudioModeModule } = NativeModules;
 
 // --- Helper: Safe Audio Module Call ---
-const safeAudioModuleCall = (methodName: string, ...args: any[]) => {
+const safeAudioModuleCall = (
+  methodName: string,
+  ...args: (string | number | boolean)[]
+) => {
   try {
     if (!AudioModeModule) {
       console.warn(`⚠️ AudioModeModule no disponible para ${methodName}`);
@@ -97,23 +93,34 @@ const requestAudioPermissions = async (): Promise<boolean> => {
   }
 };
 
+type InfoPlistEnv = { SIGNALING_URL?: string; TURN_USERNAME?: string; TURN_CREDENTIAL?: string };
+const infoPlist = (Constants?.expoConfig?.ios?.infoPlist ?? {}) as InfoPlistEnv;
+
 const SIGNALING_URL =
   (process?.env?.EXPO_PUBLIC_SIGNALING_URL as string) ||
   SIGNALING_URL_ENV ||
-  (Constants?.expoConfig?.ios?.infoPlist as any)?.SIGNALING_URL ||
+  infoPlist.SIGNALING_URL ||
   "wss://webrtc-live-ct59.onrender.com";
 
 const TURN_USERNAME_FINAL =
   (process?.env?.EXPO_PUBLIC_TURN_USERNAME as string) ||
   TURN_USERNAME ||
-  (Constants?.expoConfig?.ios?.infoPlist as any)?.TURN_USERNAME ||
+  infoPlist.TURN_USERNAME ||
   "";
 
 const TURN_CREDENTIAL_FINAL =
   (process?.env?.EXPO_PUBLIC_TURN_CREDENTIAL as string) ||
   TURN_CREDENTIAL ||
-  (Constants?.expoConfig?.ios?.infoPlist as any)?.TURN_CREDENTIAL ||
+  infoPlist.TURN_CREDENTIAL ||
   "";
+
+interface CandidatePayload {
+  candidate: {
+    candidate?: string;
+    sdpMLineIndex?: number | null;
+    sdpMid?: string | null;
+  };
+}
 
 const rtcConfig = {
   iceServers: [
@@ -151,14 +158,15 @@ function AppContent() {
 
   const [language, setLanguage] = useState<string | null>(null);
   const [status, setStatus] = useState("idle");
-  const [remoteStream, setRemoteStream] = useState<any>(null);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [showInfoScreen, setShowInfoScreen] = useState(false);
   const [speakerOn, setSpeakerOn] = useState(false);
   const [wsState, setWsState] = useState<"init" | "open" | "error" | "close">(
     "init"
   );
   const [wsError, setWsError] = useState<string | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
-  const candidateQueueRef = useRef<any[]>([]);
+  const candidateQueueRef = useRef<CandidatePayload["candidate"][]>([]);
   const fgServiceRef = useRef<any>(null);
   const channelCreatedRef = useRef(false);
   const fgStartedRef = useRef(false);
@@ -263,7 +271,7 @@ function AppContent() {
     setStatus("requesting");
   }, [language]);
 
-  const handleCandidate = useCallback(async (data: any) => {
+  const handleCandidate = useCallback(async (data: CandidatePayload) => {
     if (pcRef.current) {
       try {
         await pcRef.current.addIceCandidate(
@@ -278,16 +286,22 @@ function AppContent() {
   }, []);
 
   const handleOffer = useCallback(
-    async (data: any) => {
+    async (data: { offer: { sdp: string; type: string | null }; clientId: string }) => {
       setStatus("connecting");
       if (pcRef.current) pcRef.current.close();
+      interface RTCTrackEventWithStreams {
+        streams: MediaStream[];
+      }
+      interface RTCIceEvent {
+        candidate: RTCIceCandidate | null;
+      }
       const pc = (new RTCPeerConnection(rtcConfig) as unknown as RTCPeerConnection & {
-        onicecandidate: (ev: any) => void;
-        ontrack: (ev: any) => void;
+        onicecandidate: (ev: RTCIceEvent) => void;
+        ontrack: (ev: RTCTrackEventWithStreams) => void;
       });
       pcRef.current = pc;
 
-      pc.ontrack = (event: any) => {
+      pc.ontrack = (event: RTCTrackEventWithStreams) => {
         const stream = event.streams[0];
         if (stream) {
           setRemoteStream(stream);
@@ -305,7 +319,7 @@ function AppContent() {
         }
       };
 
-      pc.onicecandidate = (ev: any) => {
+      pc.onicecandidate = (ev: RTCIceEvent) => {
         if (ev.candidate && wsRef.current) {
           wsRef.current.send(
             JSON.stringify({
@@ -393,8 +407,8 @@ function AppContent() {
       setWsError(null);
       console.log("✅ WS conectado");
     };
-    ws.onerror = (e) => {
-      const msg = (e as any)?.message || JSON.stringify(e);
+    ws.onerror = (e: ErrorEvent | Event) => {
+      const msg = "message" in e ? String((e as ErrorEvent).message) : JSON.stringify(e);
       setWsState("error");
       setWsError(msg);
       console.warn("⚠️ WS error", msg);
@@ -478,7 +492,7 @@ function AppContent() {
   }, []);
 
   const handleSelectLanguage = useCallback(async (code: string) => {
-    const active = (activeLangs as any)[code];
+    const active = activeLangs[code as keyof typeof activeLangs];
     if (!active) return;
     
     try {
@@ -698,13 +712,30 @@ function AppContent() {
   }, [remoteStream, animScale]);
 
   // ---------- UI ----------
+  if (showInfoScreen) {
+    return (
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor: "#171f2e" }}
+        edges={["top", "bottom"]}
+      >
+        <View style={[styles.titleBand, { paddingTop: insets.top + 8 }]}>
+          <Text style={styles.title}>Schedule & contact</Text>
+        </View>
+        <ChurchInfoScreen onBack={() => setShowInfoScreen(false)} />
+        <View style={[styles.footerBand, { paddingBottom: insets.bottom + 8 }]}>
+          <Text style={styles.footer}>© EBEN-EZER Media 2025</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView
       style={{ flex: 1, backgroundColor: "#171f2e" }}
       edges={["top", "bottom"]}
     >
       <View style={[styles.titleBand, { paddingTop: insets.top + 8 }]}>
-        <Text style={styles.title}>TRANSMISIÓN EN VIVO</Text>
+        <Text style={styles.title}>Live translation</Text>
       </View>
       <ScrollView
         contentContainerStyle={[
@@ -716,14 +747,17 @@ function AppContent() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Alterna selección de idioma o listener (no ambos) */}
+        <Text style={styles.subtitle}>
+          Listen to the service in your language. Use at church or while
+          watching our YouTube stream. Tap a language when it’s live.
+        </Text>
         {!language || !remoteStream ? (
-          <LanguageSelector 
-            activeLangs={activeLangs} 
-            onSelectLanguage={handleSelectLanguage} 
+          <LanguageSelector
+            activeLangs={activeLangs}
+            onSelectLanguage={handleSelectLanguage}
           />
         ) : (
-          <LiveStreamPlayer 
+          <LiveStreamPlayer
             remoteStream={remoteStream}
             animScale={animScale}
             stopListening={stopListening}
@@ -732,7 +766,19 @@ function AppContent() {
             emergencyAudioReset={emergencyAudioReset}
           />
         )}
-        {/* --- SIEMPRE debajo, las cajas de info y contacto --- */}
+        <View style={styles.serviceTimesBar}>
+          <Text style={styles.serviceTimesText}>
+            Service times: Sun 10:00 & 18:00 · Tue & Thu 20:00
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={styles.infoNavButton}
+          onPress={() => setShowInfoScreen(true)}
+          accessibilityLabel="Open schedule and contact information"
+        >
+          <Info size={20} color="#3ee8ef" />
+          <Text style={styles.infoNavLabel}>Schedule & contact</Text>
+        </TouchableOpacity>
         {__DEV__ && (
           <View style={styles.debugBox}>
             <Text style={styles.debugTitle}>DEBUG</Text>
@@ -748,92 +794,6 @@ function AppContent() {
             </Text>
           </View>
         )}
-        <View style={styles.infoBox}>
-          <Text style={styles.infoText}>
-            Bienvenidos a la transmisión en vivo con traducción simultánea de
-            Iglesia Pentecostal Rumana EBEN-EZER Castellon de la Plana {"\n\n"}
-            El horario de las emisiones será:
-          </Text>
-          <View style={styles.infoListBox}>
-            <Text style={styles.infoListItem}>
-              • Domingos 10:00 -12:00 y 18:00 - 20:00
-            </Text>
-            <Text style={styles.infoListItem}>• Martes 20:00 - 21:30</Text>
-            <Text style={styles.infoListItem}>• Jueves 20:00 - 21:30</Text>
-          </View>
-          <Text style={styles.infoText}>
-            {"\n"}Si necesitas auriculares o adaptadores, contacta con el equipo
-            de sonido. ¡Gracias por acompañarnos!
-          </Text>
-          {/* Botón WhatsApp al final de la info */}
-          <View style={{ alignItems: "center", marginTop: 9 }}>
-            <TouchableOpacity
-              style={styles.contactBtn}
-              activeOpacity={0.84}
-              onPress={() => {
-                Linking.openURL(
-                  "https://wa.me/34637951683?text=Hola!%20Quisiera%20m%20informaci%C3%B3n%20sobre%20la%20transmisi%C3%B3n"
-                );
-              }}
-              accessibilityLabel="Solicita un técnico por WhatsApp"
-            >
-              <View style={{ marginRight: 10 }}>
-                <Svg width={22} height={22} viewBox="0 0 24 24" fill="white">
-                  <Path d="M12.04 2C6.49 2 2 6.47 2 11.99c0 2.11.57 4.05 1.63 5.79L2 22l4.41-1.61c1.67.91 3.56 1.39 5.63 1.39h.01c5.55 0 10.04-4.47 10.04-9.99C22.08 6.47 17.59 2 12.04 2zm5.69 14.31c-.24.68-1.38 1.3-1.89 1.38-.48.07-1.08.1-1.74-.11-.4-.13-.92-.29-1.58-.57-2.78-1.19-4.6-3.97-4.74-4.15-.14-.18-1.13-1.49-1.13-2.84 0-1.35.72-2.02.98-2.3.26-.28.57-.35.76-.35.18 0 .38.01.55.01.18 0 .42-.07.65.5.24.57.82 1.98.89 2.12.07.14.11.3.02.48-.09.18-.13.3-.25.46-.13.16-.27.36-.39.49-.13.14-.27.29-.12.57.14.28.61.99 1.31 1.6.9.8 1.65 1.05 1.94 1.19.3.14.46.12.63-.07.18-.2.72-.83.92-1.12.2-.28.39-.23.65-.14.26.09 1.64.77 1.92.9.28.14.47.2.54.31.06.11.06.64-.18 1.32z" />
-                </Svg>
-              </View>
-              <Text style={styles.contactBtnLabel}>SOLICITA UN TÉCNICO</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-        <View style={styles.rightColumn}>
-          <View style={styles.textBox}>
-            <Text style={styles.textItem}>
-              <MapPin size={16} color="#00b4d8" /> Dirección: Camí de la
-              Donació, 89, 12004, Castellón de la Plana
-            </Text>
-            <Text style={styles.textItem}>
-              <Phone size={16} color="#00b4d8" /> Teléfono: +34 687-210-586
-            </Text>
-            <Text style={styles.textItem}>
-              <Mail size={16} color="#00b4d8" /> Email:
-              biserica_ebenezer@yahoo.es
-            </Text>
-            <Text style={styles.textItem}>
-              <Clock size={16} color="#00b4d8" /> Horario:{"\n"}Domingos
-              10:00–12:00 y 18:00–20:00{"\n"}Martes 20:00–21:30{"\n"}Jueves
-              20:00–21:30
-            </Text>
-            <Text style={styles.textItem}>
-              <PlayCircle size={16} color="#00b4d8" />{" "}
-              <Text
-                style={styles.link}
-                onPress={() =>
-                  Linking.openURL(
-                    "https://youtube.com/@bisericaebenezercastellon"
-                  )
-                }
-              >
-                youtube.com/@bisericaebenezercastellon
-              </Text>
-            </Text>
-            <Text style={styles.textItem}>
-              <Globe size={16} color="#00b4d8" />{" "}
-              <Text
-                style={styles.link}
-                onPress={() =>
-                  Linking.openURL("https://www.bisericaebenezer.com")
-                }
-              >
-                www.bisericaebenezer.com
-              </Text>
-            </Text>
-            <Text style={styles.textItem}>
-              <MessageCircle size={16} color="#00b4d8" /> WhatsApp: +34 624 227
-              214
-            </Text>
-          </View>
-        </View>
       </ScrollView>
       <View style={[styles.footerBand, { paddingBottom: insets.bottom + 8 }]}>
         <Text style={styles.footer}>© EBEN-EZER Media 2025</Text>
@@ -868,99 +828,51 @@ const styles = StyleSheet.create({
     color: "#f4f7fb",
     margin: 0,
   },
-  rightColumn: {
-    marginTop: 20,
-    width: "100%",
-  },
-  textBox: {
-    backgroundColor: "#222e3c",
-    padding: 18,
-    borderRadius: 17,
-    shadowColor: "#121a22",
-    shadowOpacity: 0.11,
-    shadowRadius: 13,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
-    borderWidth: 1.3,
-    borderColor: "#283753",
-  },
-  textItem: {
-    color: "#f4f7fb",
+  subtitle: {
     fontSize: 15,
-    marginBottom: 8,
-    lineHeight: 21,
+    color: "#b7cced",
+    textAlign: "center",
+    marginBottom: 20,
+    paddingHorizontal: 8,
+    lineHeight: 22,
   },
-  link: {
-    color: "#82eefd",
-    textDecorationLine: "underline",
+  serviceTimesBar: {
+    marginTop: 24,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: "#222e3c",
+    borderRadius: 12,
+    alignSelf: "stretch",
+    alignItems: "center",
+  },
+  serviceTimesText: {
+    color: "#5de6fa",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  infoNavButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    backgroundColor: "#222e3c",
+    borderWidth: 1.2,
+    borderColor: "#283753",
+    alignSelf: "stretch",
+  },
+  infoNavLabel: {
+    color: "#3ee8ef",
+    fontSize: 15,
+    fontWeight: "600",
+    marginLeft: 8,
   },
   footer: {
     color: "#b7cced",
     fontSize: 10,
     fontWeight: "500",
-  },
-  infoBox: {
-    backgroundColor: "#202f47",
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 15,
-    marginTop: 2,
-    borderWidth: 1.4,
-    borderColor: "#3ee8ef33",
-    shadowColor: "#182030",
-    shadowOpacity: 0.17,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  infoText: {
-    color: "#e3f6fb",
-    fontSize: 14.5,
-    marginBottom: 2,
-    lineHeight: 22,
-    fontWeight: "500",
-  },
-  infoListBox: {
-    marginTop: 2,
-    marginBottom: 5,
-    marginLeft: 10,
-  },
-  infoListItem: {
-    color: "#5de6fa",
-    fontSize: 15,
-    marginBottom: 1,
-    lineHeight: 21,
-    fontWeight: "600",
-  },
-  contactBox: {
-    marginVertical: 9,
-    backgroundColor: "#183956",
-    borderRadius: 13,
-    borderWidth: 1.1,
-    borderColor: "#23e6a988",
-    alignItems: "center",
-    alignSelf: "stretch",
-    padding: 10,
-    shadowColor: "#172a3a",
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  contactBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 8,
-    paddingHorizontal: 13,
-    borderRadius: 27,
-    backgroundColor: "#22b573",
-    shadowColor: "#155a41",
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-  },
-  contactBtnLabel: {
-    color: "#fff",
-    fontSize: 15,
-    fontWeight: "bold",
-    letterSpacing: 0.5,
   },
   debugBox: {
     backgroundColor: "#0f1624",
