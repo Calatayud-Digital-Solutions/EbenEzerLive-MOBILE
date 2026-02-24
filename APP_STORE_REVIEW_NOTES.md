@@ -20,4 +20,7 @@ We have restructured the app so that:
 - The home screen clearly presents “Live translation” and explains that users can listen in their language at church or while watching YouTube.
 - Schedule and contact information are in a separate “Schedule & contact” section so the primary experience is the translation feature.
 
+**How to test the language buttons (Guideline 2.1):**  
+The language buttons are only **active during the live stream**. If you open the app when no service is being streamed, you will see all three languages with a red indicator and a clear message: "No languages available yet — Translation is only available during the live stream…" with instructions to use "Schedule & contact" → "Request technical support" for questions. To test actually selecting a language, please use the app **while our YouTube stream is live** (e.g. Sundays 10:00 or 18:00, Tue/Thu 20:00 CET) or contact us via the in-app "Request technical support" and we can arrange a short test stream for review.
+
 Thank you for reviewing our app.
