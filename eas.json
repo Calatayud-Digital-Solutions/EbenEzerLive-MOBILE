@@ -13,13 +13,13 @@
     },
     "production": {
       "android": {
-        "buildType": "apk",
-        "gradleCommand": ":app:assembleRelease"
+        "buildType": "app-bundle",
+        "distribution": "store"
       },
       "ios": {
         "distribution": "store"
       },
-      "distribution": "internal"
+      "distribution": "store"
     },
     "release": {
       "extends": "production"
