@@ -1,8 +1,7 @@
 module.exports = {
   dependencies: {
     "@voximplant/react-native-foreground-service": {
-      root:
-        __dirname + "/local-modules/voximplant-react-native-foreground-service",
+      root: __dirname + "/local-modules",
       platforms: {
         android: {
           sourceDir: "android",
@@ -12,16 +11,6 @@ module.exports = {
         },
       },
     },
-    "local-audiomode": {
-      root: __dirname + "/local-modules/android",
-      platforms: {
-        android: {
-          sourceDir: "android",
-          packageImportPath:
-            "import com.localmodules.audiomode.AudioModePackage;",
-          packageInstance: "new AudioModePackage()",
-        },
-      },
-    },
+    // local-audiomode removed: same android module as above; AudioModePackage added in MainApplication.kt
   },
 };

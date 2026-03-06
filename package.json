@@ -9,7 +9,9 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "postprebuild": "node scripts/post-prebuild.js",
-    "test": "jest"
+    "test": "jest",
+    "build:android:local": "JAVA_HOME=$(/usr/libexec/java_home -v 17 2>/dev/null) npx eas build --platform android --profile production --local",
+    "build:play": "npx eas build --platform android --profile production"
   },
   "dependencies": {
     "@voximplant/react-native-foreground-service": "file:./local-modules",
