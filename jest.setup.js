@@ -1,3 +1,19 @@
+// Mock WebSocket
+class MockWebSocket {
+  static OPEN = 1;
+  static CLOSED = 3;
+  readyState = MockWebSocket.OPEN;
+  send = jest.fn();
+  close = jest.fn();
+  addEventListener = jest.fn();
+  removeEventListener = jest.fn();
+  onopen = null;
+  onerror = null;
+  onclose = null;
+  onmessage = null;
+}
+global.WebSocket = MockWebSocket;
+
 // Mock expo-constants
 jest.mock('expo-constants', () => ({
   expoConfig: {

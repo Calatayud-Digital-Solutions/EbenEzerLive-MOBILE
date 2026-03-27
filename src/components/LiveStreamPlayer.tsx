@@ -24,7 +24,7 @@ export const LiveStreamPlayer: React.FC<LiveStreamPlayerProps> = ({
   stopListening,
   speakerOn,
   toggleSpeaker,
-  emergencyAudioReset
+  emergencyAudioReset,
 }) => {
   return (
     <View style={styles.audioContainer}>

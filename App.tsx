@@ -4,7 +4,6 @@ import {
   Easing,
   Platform,
   NativeModules,
-  Linking,
   AppState,
   PermissionsAndroid,
   Alert,
@@ -170,6 +169,8 @@ function AppContent() {
   const fgServiceRef = useRef<any>(null);
   const channelCreatedRef = useRef(false);
   const fgStartedRef = useRef(false);
+  const prevWsStateRef = useRef<typeof wsState>("init");
+  const heartbeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
   // --- Audio setup ---
   useEffect(() => {
@@ -408,7 +409,7 @@ function AppContent() {
       console.log("✅ WS conectado");
     };
     ws.onerror = (e: ErrorEvent | Event) => {
-      const msg = "message" in e ? String((e as ErrorEvent).message) : JSON.stringify(e);
+      const msg = e instanceof ErrorEvent ? String(e.message) : JSON.stringify(e);
       setWsState("error");
       setWsError(msg);
       console.warn("⚠️ WS error", msg);
@@ -432,9 +433,6 @@ function AppContent() {
           });
           console.log("📡 active-broadcasts recibido:", data.active);
         }
-        if (data.type === "listeners-count") {
-          console.log("👥 listeners-count:", data.listeners);
-        }
       } catch (err) {
         console.error("⚠️ Error parsing WS:", err);
       }
@@ -454,9 +452,6 @@ function AppContent() {
                   });
                   console.log("📡 active-broadcasts recibido:", data.active);
                 }
-                if (data.type === "listeners-count") {
-                  console.log("👥 listeners-count:", data.listeners);
-                }
                 if (data.type === "offer") handleOffer(data);
                 if (data.type === "candidate") handleCandidate(data);
               } catch (err) {
@@ -471,6 +466,46 @@ function AppContent() {
     createSocket();
     return () => wsRef.current?.close();
   }, []);
+
+  // Re-request offer when WebSocket reconnects while user was already listening
+  useEffect(() => {
+    const wasReconnecting = prevWsStateRef.current !== "open" && wsState === "open";
+    prevWsStateRef.current = wsState;
+    if (wasReconnecting && language && wsRef.current?.readyState === WebSocket.OPEN) {
+      console.log("🔄 WS reconnected while listening, re-requesting offer…");
+      requestOffer();
+    }
+  }, [wsState, language, requestOffer]);
+
+  // Heartbeat: Render keepalive when idle; faster interval while listening so server can drop dead sessions (e.g. force-quit).
+  useEffect(() => {
+    const HEARTBEAT_IDLE_MS = 4 * 60 * 1000;
+    const HEARTBEAT_LISTENING_MS = 25 * 1000;
+    const intervalMs = language ? HEARTBEAT_LISTENING_MS : HEARTBEAT_IDLE_MS;
+    if (wsState !== "open" || !wsRef.current) {
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+        heartbeatIntervalRef.current = null;
+      }
+      return;
+    }
+    if (heartbeatIntervalRef.current) {
+      clearInterval(heartbeatIntervalRef.current);
+      heartbeatIntervalRef.current = null;
+    }
+    heartbeatIntervalRef.current = setInterval(() => {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: "ping" }));
+        console.log("💓 Heartbeat sent");
+      }
+    }, intervalMs);
+    return () => {
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+        heartbeatIntervalRef.current = null;
+      }
+    };
+  }, [wsState, language]);
 
   // --- Helper to wait for socket connection ---
   const waitForSocketConnection = useCallback(async () => {
@@ -627,31 +662,39 @@ function AppContent() {
   }, [speakerOn]);
 
   // --- Limpieza completa al desmontar ---
+  const languageRef = useRef<string | null>(null);
+  languageRef.current = language;
+  const cleanupAudioOnUnmount = useCallback(() => {
+    if (Platform.OS !== "android") return;
+    try {
+      InCallManager.setSpeakerphoneOn(false);
+      InCallManager.stop();
+      if (AudioModeModule?.resetAudioState) AudioModeModule.resetAudioState();
+      else if (AudioModeModule?.setModeNormal) AudioModeModule.setModeNormal();
+      if (AudioModeModule?.stopAudioMonitoring) AudioModeModule.stopAudioMonitoring();
+      if (AudioModeModule?.stopCleanupService) AudioModeModule.stopCleanupService();
+      if (AudioModeModule?.forceNormalAudioMode) AudioModeModule.forceNormalAudioMode();
+      console.log("🧹 Limpieza completa de audio al desmontar");
+    } catch (e) {
+      console.warn("⚠️ Error cleanup audio:", e);
+    }
+  }, []);
   useEffect(() => {
     return () => {
       stopForegroundService().catch(() => {});
-      wsRef.current?.close();
-      if (Platform.OS === "android") {
+      if (wsRef.current?.readyState === WebSocket.OPEN && languageRef.current) {
         try {
-          InCallManager.setSpeakerphoneOn(false);
-          InCallManager.stop();
-          if (AudioModeModule?.resetAudioState)
-            AudioModeModule.resetAudioState();
-          else if (AudioModeModule?.setModeNormal)
-            AudioModeModule.setModeNormal();
-          if (AudioModeModule?.stopAudioMonitoring)
-            AudioModeModule.stopAudioMonitoring();
-          if (AudioModeModule?.stopCleanupService)
-            AudioModeModule.stopCleanupService();
-          if (AudioModeModule?.forceNormalAudioMode)
-            AudioModeModule.forceNormalAudioMode();
-          console.log("🧹 Limpieza completa de audio al desmontar");
-        } catch (e) {
-          console.warn("⚠️ Error cleanup audio:", e);
+          wsRef.current.send(
+            JSON.stringify({ type: "stop-listening", language: languageRef.current })
+          );
+        } catch {
+          // Ignore if send fails during unmount
         }
       }
+      wsRef.current?.close();
+      cleanupAudioOnUnmount();
     };
-  }, [stopForegroundService]);
+  }, [stopForegroundService, cleanupAudioOnUnmount]);
 
   // --- Speaker toggle ---
   const toggleSpeaker = useCallback(() => {
