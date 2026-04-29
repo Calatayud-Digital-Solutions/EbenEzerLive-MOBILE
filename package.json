@@ -15,6 +15,7 @@
     "build:play": "npx eas build --platform android --profile production",
     "release:android": "npx eas build --platform android --profile production --auto-submit",
     "release:ios": "npx eas build --platform ios --profile production --auto-submit",
+    "release:all": "npx eas build --platform all --profile production --auto-submit",
     "submit:latest:android": "npx eas submit --platform android --latest --profile production",
     "submit:latest:ios": "npx eas submit --platform ios --latest --profile production",
     "testflight:ios": "npm run release:ios",
