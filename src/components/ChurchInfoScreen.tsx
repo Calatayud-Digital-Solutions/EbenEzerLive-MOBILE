@@ -15,15 +15,13 @@ import {
   PlayCircle,
   Globe,
   MessageCircle,
-  ChevronLeft,
 } from "lucide-react-native";
 import { Svg, Path } from "react-native-svg";
 
 import { useI18n } from "../i18n/I18nContext";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-interface ChurchInfoScreenProps {
-  onBack: () => void;
-}
+const HEADER_CONTENT_OFFSET = 56;
 
 const WHATSAPP_TECH_PHONE = "34637951683";
 const YOUTUBE_URL = "https://youtube.com/@bisericaebenezercastellon";
@@ -34,27 +32,20 @@ function buildWhatsappTechUrl(prefillMessage: string): string {
   return `https://wa.me/${WHATSAPP_TECH_PHONE}?text=${encoded}`;
 }
 
-export const ChurchInfoScreen: React.FC<ChurchInfoScreenProps> = ({
-  onBack,
-}) => {
+export const ChurchInfoScreen = (): React.ReactElement => {
+  const insets = useSafeAreaInsets();
   const { t } = useI18n();
   const whatsappTechUrl = buildWhatsappTechUrl(t("churchInfo.whatsappPrefillMessage"));
 
   return (
     <ScrollView
       style={styles.scroll}
-      contentContainerStyle={styles.scrollContent}
+      contentContainerStyle={[
+        styles.scrollContent,
+        { paddingTop: insets.top + HEADER_CONTENT_OFFSET },
+      ]}
       showsVerticalScrollIndicator={false}
     >
-      <TouchableOpacity
-        style={styles.backButton}
-        onPress={onBack}
-        accessibilityLabel={t("churchInfo.backA11y")}
-      >
-        <ChevronLeft size={24} color="#3ee8ef" />
-        <Text style={styles.backLabel}>{t("churchInfo.back")}</Text>
-      </TouchableOpacity>
-
       <View style={styles.infoBox}>
         <Text style={styles.infoText}>
           {t("churchInfo.welcome")}
@@ -120,21 +111,8 @@ export const ChurchInfoScreen: React.FC<ChurchInfoScreenProps> = ({
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: {
-    padding: 16,
+    paddingHorizontal: 16,
     paddingBottom: 32,
-  },
-  backButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    marginBottom: 16,
-    paddingVertical: 6,
-    paddingRight: 10,
-  },
-  backLabel: {
-    color: "#3ee8ef",
-    fontSize: 16,
-    fontWeight: "600",
   },
   infoBox: {
     backgroundColor: "#202f47",

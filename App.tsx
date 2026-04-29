@@ -5,6 +5,7 @@ import {
   Platform,
   NativeModules,
   AppState,
+  BackHandler,
   PermissionsAndroid,
   Alert,
   StyleSheet,
@@ -29,7 +30,7 @@ import Constants from "expo-constants";
 import VIForegroundService from "@voximplant/react-native-foreground-service";
 import InCallManager from "react-native-incall-manager";
 
-import { Info } from "lucide-react-native";
+import { ChevronLeft, Info } from "lucide-react-native";
 import { TURN_USERNAME, TURN_CREDENTIAL, SIGNALING_URL as SIGNALING_URL_ENV } from "@env";
 
 import { LanguageSelector } from "./src/components/LanguageSelector";
@@ -231,6 +232,15 @@ function AppScreen() {
       })();
     }
   }, []);
+
+  useEffect(() => {
+    if (!showInfoScreen || Platform.OS !== "android") return;
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      setShowInfoScreen(false);
+      return true;
+    });
+    return () => subscription.remove();
+  }, [showInfoScreen]);
 
   const startForegroundService = useCallback(async () => {
     if (Platform.OS !== "android") return;
@@ -780,10 +790,25 @@ function AppScreen() {
         style={{ flex: 1, backgroundColor: "#171f2e" }}
         edges={["top", "bottom"]}
       >
-        <View style={[styles.titleBand, { paddingTop: insets.top + 8 }]}>
-          <Text style={styles.title}>{t("app.titleInfo")}</Text>
+        <View
+          style={[styles.titleBand, styles.infoScreenTitleBand, { paddingTop: insets.top + 8 }]}
+        >
+          <TouchableOpacity
+            style={styles.infoHeaderBack}
+            onPress={() => setShowInfoScreen(false)}
+            accessibilityRole="button"
+            accessibilityLabel={t("churchInfo.backA11y")}
+            hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+          >
+            <ChevronLeft size={24} color="#3ee8ef" />
+            <Text style={styles.infoHeaderBackText}>{t("churchInfo.back")}</Text>
+          </TouchableOpacity>
+          <Text style={[styles.title, styles.infoScreenTitleText]} numberOfLines={1}>
+            {t("app.titleInfo")}
+          </Text>
+          <View style={styles.infoHeaderBalance} pointerEvents="none" />
         </View>
-        <ChurchInfoScreen onBack={() => setShowInfoScreen(false)} />
+        <ChurchInfoScreen />
         <View style={[styles.footerBand, { paddingBottom: insets.bottom + 8 }]}>
           <Text style={styles.footer}>{t("app.footerCopyright")}</Text>
         </View>
@@ -880,6 +905,31 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#334060",
     zIndex: 50,
+  },
+  infoScreenTitleBand: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 4,
+  },
+  infoHeaderBack: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: 120,
+  },
+  infoHeaderBackText: {
+    color: "#3ee8ef",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  infoScreenTitleText: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 17,
+    paddingHorizontal: 4,
+  },
+  infoHeaderBalance: {
+    width: 120,
   },
   title: {
     fontSize: 22,
