@@ -1,0 +1,74 @@
+{
+  "app": {
+    "titleMain": "Traducere în direct",
+    "titleInfo": "Program și contact",
+    "subtitle": "Ascultă serviciul în limba ta, la biserică sau urmărind transmisiunea live pe YouTube. Atinge o limbă când este live.",
+    "serviceTimes": "Program: duminică 10:00 și 18:00 · marți și joi 20:00",
+    "scheduleContact": "Program și contact",
+    "footerCopyright": "© EBEN-EZER Media 2025",
+    "infoNavA11y": "Deschide programul și informațiile de contact"
+  },
+  "uiLanguage": {
+    "label": "Limba interfeței"
+  },
+  "languageSelector": {
+    "inactiveTitle": "Încă nu sunt limbi disponibile",
+    "inactiveBody": "Traducerea este disponibilă doar în timpul transmisiunii live (la biserică sau când urmărești live-ul nostru pe YouTube). Dacă ai nevoie de traducere pentru un eveniment sau întrebări, deschide «Program și contact» și apasă «Suport tehnic».",
+    "hint": "Verde = live. Roșu = nu se transmite. Traducerea funcționează doar în timpul streamului.",
+    "langEs": "Spaniolă",
+    "langEn": "Engleză",
+    "langRo": "Română",
+    "a11yAvailable": "{{label}}, disponibil",
+    "a11yUnavailable": "{{label}}, indisponibil",
+    "a11yHintAvailable": "Atinge de două ori pentru a asculta în această limbă",
+    "a11yHintUnavailable": "Traducerea este disponibilă doar în timpul transmisiunii live. Folosește Program și contact pentru suport."
+  },
+  "permissions": {
+    "audioTitle": "Permisiune audio",
+    "audioMessage": "Aplicația are nevoie de acces audio pentru a primi transmisiunea live.",
+    "buttonNeutral": "Întreabă mai târziu",
+    "buttonNegative": "Anulează",
+    "buttonPositive": "Permite"
+  },
+  "alerts": {
+    "permissionsRequiredTitle": "Permisiuni necesare",
+    "permissionsRequiredBody": "Aplicația are nevoie de acces audio. Activează permisiunile în setări.",
+    "connectionErrorTitle": "Eroare de conexiune",
+    "connectionErrorBody": "Nu s-a putut conecta la server. Verifică conexiunea la internet.",
+    "genericErrorTitle": "Eroare",
+    "genericErrorBody": "Nu s-a putut porni transmisiunea. Încearcă din nou.",
+    "ok": "OK"
+  },
+  "foregroundService": {
+    "channelName": "Audio transmisiune live",
+    "channelDescription": "Menține transmisiunea activă în fundal",
+    "notificationTitle": "EbenEzer Live",
+    "notificationText": "Ascultare transmisiune live"
+  },
+  "livePlayer": {
+    "stop": "Oprește",
+    "speakerA11y": "Comută difuzorul",
+    "emergencyReset": "Reset audio"
+  },
+  "churchInfo": {
+    "back": "Înapoi",
+    "backA11y": "Înapoi la traducerea live",
+    "welcome": "Bine ai venit la transmisiunea live cu traducere simultană a Bisericii penticostale române EBEN-EZER Castellón de la Plana.\n\nProgramul serviciilor:",
+    "scheduleSun": "• Duminică 10:00–12:00 și 18:00–20:00",
+    "scheduleTue": "• Marți 20:00–21:30",
+    "scheduleThu": "• Joi 20:00–21:30",
+    "headphonesNote": "\nDacă ai nevoie de căști sau adaptoare, contactează echipa de sunet. Îți mulțumim că ești alături de noi!",
+    "contactSupport": "Suport tehnic",
+    "contactSupportA11y": "Solicită suport tehnic prin WhatsApp",
+    "addressLine": "Camí de la Donació, 89, 12004, Castellón de la Plana",
+    "scheduleShort": "Duminică 10:00–12:00, 18:00–20:00\nMarți și joi 20:00–21:30",
+    "whatsappLabel": "WhatsApp: +34 624 227 214",
+    "whatsappPrefillMessage": "Bună, aș dori informații despre transmisiune."
+  },
+  "debug": {
+    "title": "DEBUG",
+    "activeLangs": "Limbi active:",
+    "state": "Stare:",
+    "language": "Limbă:"
+  }
+}

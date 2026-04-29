@@ -1,0 +1,74 @@
+{
+  "app": {
+    "titleMain": "Traducción en vivo",
+    "titleInfo": "Horario y contacto",
+    "subtitle": "Escucha el culto en tu idioma, en la iglesia o viendo el directo en YouTube. Pulsa un idioma cuando esté en directo.",
+    "serviceTimes": "Horarios: domingo 10:00 y 18:00 · martes y jueves 20:00",
+    "scheduleContact": "Horario y contacto",
+    "footerCopyright": "© EBEN-EZER Media 2025",
+    "infoNavA11y": "Abrir horario e información de contacto"
+  },
+  "uiLanguage": {
+    "label": "Idioma de la interfaz"
+  },
+  "languageSelector": {
+    "inactiveTitle": "Aún no hay idiomas disponibles",
+    "inactiveBody": "La traducción solo está disponible durante la transmisión en directo (en la iglesia o al ver nuestro directo en YouTube). Si necesitas activar la traducción para un evento o tienes dudas, abre «Horario y contacto» y pulsa «Soporte técnico».",
+    "hint": "Verde = en directo. Rojo = sin emisión. La traducción solo funciona durante el stream.",
+    "langEs": "Español",
+    "langEn": "Inglés",
+    "langRo": "Rumano",
+    "a11yAvailable": "{{label}}, disponible",
+    "a11yUnavailable": "{{label}}, no disponible",
+    "a11yHintAvailable": "Pulsa dos veces para escuchar en este idioma",
+    "a11yHintUnavailable": "La traducción solo está disponible durante el directo. Usa Horario y contacto para solicitar ayuda."
+  },
+  "permissions": {
+    "audioTitle": "Permiso de audio",
+    "audioMessage": "Esta aplicación necesita acceso al audio para recibir la transmisión en directo.",
+    "buttonNeutral": "Preguntar después",
+    "buttonNegative": "Cancelar",
+    "buttonPositive": "Aceptar"
+  },
+  "alerts": {
+    "permissionsRequiredTitle": "Permisos necesarios",
+    "permissionsRequiredBody": "La aplicación necesita acceso al audio. Activa los permisos en ajustes.",
+    "connectionErrorTitle": "Error de conexión",
+    "connectionErrorBody": "No se pudo conectar al servidor. Comprueba tu conexión a internet.",
+    "genericErrorTitle": "Error",
+    "genericErrorBody": "No se pudo iniciar la transmisión. Inténtalo de nuevo.",
+    "ok": "Aceptar"
+  },
+  "foregroundService": {
+    "channelName": "Audio del directo",
+    "channelDescription": "Mantiene la transmisión activa en segundo plano",
+    "notificationTitle": "EbenEzer Live",
+    "notificationText": "Escuchando transmisión en directo"
+  },
+  "livePlayer": {
+    "stop": "Detener",
+    "speakerA11y": "Alternar altavoz",
+    "emergencyReset": "Reinicio de audio"
+  },
+  "churchInfo": {
+    "back": "Volver",
+    "backA11y": "Volver a traducción en vivo",
+    "welcome": "Bienvenido al directo con traducción simultánea de la Iglesia pentecostal rumana EBEN-EZER Castellón de la Plana.\n\nHorario de cultos:",
+    "scheduleSun": "• Domingos 10:00–12:00 y 18:00–20:00",
+    "scheduleTue": "• Martes 20:00–21:30",
+    "scheduleThu": "• Jueves 20:00–21:30",
+    "headphonesNote": "\nSi necesitas auriculares o adaptadores, contacta con el equipo de sonido. ¡Gracias por acompañarnos!",
+    "contactSupport": "Soporte técnico",
+    "contactSupportA11y": "Solicitar soporte técnico por WhatsApp",
+    "addressLine": "Camí de la Donació, 89, 12004, Castellón de la Plana",
+    "scheduleShort": "Domingos 10:00–12:00, 18:00–20:00\nMartes y jueves 20:00–21:30",
+    "whatsappLabel": "WhatsApp: +34 624 227 214",
+    "whatsappPrefillMessage": "Hola, quisiera información sobre la transmisión."
+  },
+  "debug": {
+    "title": "DEBUG",
+    "activeLangs": "Idiomas activos:",
+    "state": "Estado:",
+    "language": "Idioma:"
+  }
+}

@@ -1,9 +1,12 @@
-import React from 'react';
-import { View, TouchableOpacity, Image, Text, StyleSheet } from 'react-native';
+import React from "react";
+import { View, TouchableOpacity, Image, Text, StyleSheet } from "react-native";
 
 import spanishFlag from "../../assets/spanish-flag4.webp";
 import englishFlag from "../../assets/english-flag.webp";
 import romanianFlag from "../../assets/romanian-flag2.webp";
+
+import { useI18n } from "../i18n/I18nContext";
+import { interpolateTemplate } from "../i18n/translate";
 
 type LangCode = "es" | "en" | "ro";
 
@@ -12,13 +15,18 @@ interface LanguageSelectorProps {
   onSelectLanguage: (code: string) => void;
 }
 
-const LANGUAGES: { code: LangCode; label: string; img: number }[] = [
-  { code: "es", label: "Español", img: spanishFlag },
-  { code: "en", label: "Inglés", img: englishFlag },
-  { code: "ro", label: "Rumano", img: romanianFlag },
-];
+export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
+  activeLangs,
+  onSelectLanguage,
+}) => {
+  const { t } = useI18n();
 
-export const LanguageSelector: React.FC<LanguageSelectorProps> = ({ activeLangs, onSelectLanguage }) => {
+  const LANGUAGES: { code: LangCode; labelKey: string; img: number }[] = [
+    { code: "es", labelKey: "languageSelector.langEs", img: spanishFlag },
+    { code: "en", labelKey: "languageSelector.langEn", img: englishFlag },
+    { code: "ro", labelKey: "languageSelector.langRo", img: romanianFlag },
+  ];
+
   const hasAnyActive = activeLangs.es || activeLangs.en || activeLangs.ro;
   const allInactive = !hasAnyActive;
 
@@ -26,22 +34,28 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({ activeLangs,
     <View style={styles.wrapper}>
       {allInactive && (
         <View style={styles.inactiveBanner} accessible accessibilityRole="summary">
-          <Text style={styles.inactiveBannerTitle}>No languages available yet</Text>
-          <Text style={styles.inactiveBannerText}>
-            Translation is only available during the live stream (at church or when watching our YouTube stream). If you need translation enabled for an event or have questions, open "Schedule & contact" and tap "Request technical support".
-          </Text>
+          <Text style={styles.inactiveBannerTitle}>{t("languageSelector.inactiveTitle")}</Text>
+          <Text style={styles.inactiveBannerText}>{t("languageSelector.inactiveBody")}</Text>
         </View>
       )}
       {!allInactive && hasAnyActive && (
         <View style={styles.inactiveHint} accessible accessibilityRole="summary">
-          <Text style={styles.inactiveHintText}>
-            Green = live. Red = not broadcasting. Translation runs only during the stream.
-          </Text>
+          <Text style={styles.inactiveHintText}>{t("languageSelector.hint")}</Text>
         </View>
       )}
       <View style={styles.languageRow}>
-        {LANGUAGES.map(({ code, label, img }) => {
+        {LANGUAGES.map(({ code, labelKey, img }) => {
           const active = activeLangs[code];
+          const label = t(labelKey);
+          const a11yTemplate = active
+            ? t("languageSelector.a11yAvailable")
+            : t("languageSelector.a11yUnavailable");
+          const accessibilityLabel = interpolateTemplate(a11yTemplate, {
+            label,
+          });
+          const accessibilityHint = active
+            ? t("languageSelector.a11yHintAvailable")
+            : t("languageSelector.a11yHintUnavailable");
           return (
             <TouchableOpacity
               key={code}
@@ -49,20 +63,12 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({ activeLangs,
               disabled={!active}
               style={[styles.langBtn, !active && styles.langBtnInactive]}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              accessibilityLabel={active ? `${label}, available` : `${label}, unavailable`}
-              accessibilityHint={
-                active
-                  ? "Double tap to listen in this language"
-                  : "Translation is only available during the live stream. Use Schedule & contact to request support."
-              }
+              accessibilityLabel={accessibilityLabel}
+              accessibilityHint={accessibilityHint}
               accessibilityState={{ disabled: !active }}
             >
               <View style={styles.flagCircle}>
-                <Image
-                  source={img}
-                  style={styles.flagImg}
-                  resizeMode="cover"
-                />
+                <Image source={img} style={styles.flagImg} resizeMode="cover" />
               </View>
               <Text style={styles.langText}>{label}</Text>
               <View

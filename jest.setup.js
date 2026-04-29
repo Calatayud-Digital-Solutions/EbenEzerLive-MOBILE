@@ -64,8 +64,13 @@ jest.mock('react-native-incall-manager', () => ({
   setSpeakerphoneOn: jest.fn(),
 }));
 
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock')
+);
+
 // Mock Lucide icons
 jest.mock('lucide-react-native', () => ({
+  ChevronLeft: 'ChevronLeft',
   MapPin: 'MapPin',
   Phone: 'Phone',
   Mail: 'Mail',

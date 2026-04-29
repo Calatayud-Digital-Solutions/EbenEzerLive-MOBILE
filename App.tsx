@@ -35,6 +35,16 @@ import { TURN_USERNAME, TURN_CREDENTIAL, SIGNALING_URL as SIGNALING_URL_ENV } fr
 import { LanguageSelector } from "./src/components/LanguageSelector";
 import { LiveStreamPlayer } from "./src/components/LiveStreamPlayer";
 import { ChurchInfoScreen } from "./src/components/ChurchInfoScreen";
+import { UiLanguageSwitcher } from "./src/components/UiLanguageSwitcher";
+import { I18nProvider, useI18n } from "./src/i18n/I18nContext";
+
+interface AndroidAudioPermissionCopy {
+  title: string;
+  message: string;
+  buttonNeutral: string;
+  buttonNegative: string;
+  buttonPositive: string;
+}
 
 const { AudioModeModule } = NativeModules;
 
@@ -64,18 +74,20 @@ const safeAudioModuleCall = (
 };
 
 // --- Helper: Request Audio Permissions ---
-const requestAudioPermissions = async (): Promise<boolean> => {
-  if (Platform.OS !== 'android') return true;
-  
+const requestAudioPermissions = async (
+  copy: AndroidAudioPermissionCopy
+): Promise<boolean> => {
+  if (Platform.OS !== "android") return true;
+
   try {
     const granted = await PermissionsAndroid.request(
       PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
       {
-        title: 'Permiso de Audio',
-        message: 'Esta aplicación necesita acceso al audio para recibir la transmisión en vivo.',
-        buttonNeutral: 'Preguntar Después',
-        buttonNegative: 'Cancelar',
-        buttonPositive: 'Aceptar',
+        title: copy.title,
+        message: copy.message,
+        buttonNeutral: copy.buttonNeutral,
+        buttonNegative: copy.buttonNegative,
+        buttonPositive: copy.buttonPositive,
       }
     );
     
@@ -137,7 +149,8 @@ const rtcConfig = {
   ],
 };
 
-function AppContent() {
+function AppScreen() {
+  const { t } = useI18n();
   const insets = useSafeAreaInsets();
 
   // --- WS & Refs ---
@@ -226,8 +239,8 @@ function AppContent() {
       if (!channelCreatedRef.current) {
         await fgServiceRef.current.createNotificationChannel({
           id: "stream_channel",
-          name: "Live Stream Audio",
-          description: "Mantiene la transmisión activa en segundo plano",
+          name: t("foregroundService.channelName"),
+          description: t("foregroundService.channelDescription"),
           importance: 4,
         });
         channelCreatedRef.current = true;
@@ -235,8 +248,8 @@ function AppContent() {
       await fgServiceRef.current.startService({
         channelId: "stream_channel",
         id: 420,
-        title: "EbenEzer Live",
-        text: "Escuchando transmisión en vivo 🎧",
+        title: t("foregroundService.notificationTitle"),
+        text: t("foregroundService.notificationText"),
         icon: "ic_launcher",
       });
       fgStartedRef.current = true;
@@ -244,7 +257,7 @@ function AppContent() {
     } catch (err) {
       console.error("⚠️ Error iniciando servicio:", err);
     }
-  }, []);
+  }, [t]);
 
   const stopForegroundService = useCallback(async () => {
     if (Platform.OS !== "android") return;
@@ -533,14 +546,20 @@ function AppContent() {
     try {
       // 1. Verificar permisos PRIMERO
       console.log('🔐 Verificando permisos de audio...');
-      const hasPermission = await requestAudioPermissions();
-      
+      const hasPermission = await requestAudioPermissions({
+        title: t("permissions.audioTitle"),
+        message: t("permissions.audioMessage"),
+        buttonNeutral: t("permissions.buttonNeutral"),
+        buttonNegative: t("permissions.buttonNegative"),
+        buttonPositive: t("permissions.buttonPositive"),
+      });
+
       if (!hasPermission) {
         console.error('❌ Permisos de audio denegados');
         Alert.alert(
-          'Permisos Requeridos',
-          'La aplicación necesita acceso al audio para funcionar. Por favor, activa los permisos en la configuración.',
-          [{ text: 'OK' }]
+          t("alerts.permissionsRequiredTitle"),
+          t("alerts.permissionsRequiredBody"),
+          [{ text: t("alerts.ok") }]
         );
         return;
       }
@@ -569,9 +588,9 @@ function AppContent() {
         if (!connected) {
           console.error("❌ No se pudo conectar WebSocket");
           Alert.alert(
-            'Error de Conexión',
-            'No se pudo conectar al servidor. Por favor, verifica tu conexión a internet.',
-            [{ text: 'OK' }]
+            t("alerts.connectionErrorTitle"),
+            t("alerts.connectionErrorBody"),
+            [{ text: t("alerts.ok") }]
           );
           return;
         }
@@ -584,12 +603,12 @@ function AppContent() {
     } catch (error) {
       console.error('❌ Error crítico al presionar botón de idioma:', error);
       Alert.alert(
-        'Error',
-        'Ocurrió un error al iniciar la transmisión. Por favor, intenta de nuevo.',
-        [{ text: 'OK' }]
+        t("alerts.genericErrorTitle"),
+        t("alerts.genericErrorBody"),
+        [{ text: t("alerts.ok") }]
       );
     }
-  }, [activeLangs, createSocket, waitForSocketConnection]);
+  }, [activeLangs, createSocket, waitForSocketConnection, t]);
 
   useEffect(() => {
     const initListening = async () => {
@@ -762,11 +781,11 @@ function AppContent() {
         edges={["top", "bottom"]}
       >
         <View style={[styles.titleBand, { paddingTop: insets.top + 8 }]}>
-          <Text style={styles.title}>Schedule & contact</Text>
+          <Text style={styles.title}>{t("app.titleInfo")}</Text>
         </View>
         <ChurchInfoScreen onBack={() => setShowInfoScreen(false)} />
         <View style={[styles.footerBand, { paddingBottom: insets.bottom + 8 }]}>
-          <Text style={styles.footer}>© EBEN-EZER Media 2025</Text>
+          <Text style={styles.footer}>{t("app.footerCopyright")}</Text>
         </View>
       </SafeAreaView>
     );
@@ -778,7 +797,7 @@ function AppContent() {
       edges={["top", "bottom"]}
     >
       <View style={[styles.titleBand, { paddingTop: insets.top + 8 }]}>
-        <Text style={styles.title}>Live translation</Text>
+        <Text style={styles.title}>{t("app.titleMain")}</Text>
       </View>
       <ScrollView
         contentContainerStyle={[
@@ -790,10 +809,8 @@ function AppContent() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.subtitle}>
-          Listen to the service in your language. Use at church or while
-          watching our YouTube stream. Tap a language when it’s live.
-        </Text>
+        <Text style={styles.subtitle}>{t("app.subtitle")}</Text>
+        <UiLanguageSwitcher />
         {!language || !remoteStream ? (
           <LanguageSelector
             activeLangs={activeLangs}
@@ -810,36 +827,35 @@ function AppContent() {
           />
         )}
         <View style={styles.serviceTimesBar}>
-          <Text style={styles.serviceTimesText}>
-            Service times: Sun 10:00 & 18:00 · Tue & Thu 20:00
-          </Text>
+          <Text style={styles.serviceTimesText}>{t("app.serviceTimes")}</Text>
         </View>
         <TouchableOpacity
           style={styles.infoNavButton}
           onPress={() => setShowInfoScreen(true)}
-          accessibilityLabel="Open schedule and contact information"
+          accessibilityLabel={t("app.infoNavA11y")}
         >
           <Info size={20} color="#3ee8ef" />
-          <Text style={styles.infoNavLabel}>Schedule & contact</Text>
+          <Text style={styles.infoNavLabel}>{t("app.scheduleContact")}</Text>
         </TouchableOpacity>
         {__DEV__ && (
           <View style={styles.debugBox}>
-            <Text style={styles.debugTitle}>DEBUG</Text>
+            <Text style={styles.debugTitle}>{t("debug.title")}</Text>
             <Text style={styles.debugLine}>
               WS: {wsState} {wsError ? `(${wsError})` : ""}
             </Text>
             <Text style={styles.debugLine}>
-              Idiomas activos: es {activeLangs.es ? "✓" : "×"} · en{" "}
+              {t("debug.activeLangs")} es {activeLangs.es ? "✓" : "×"} · en{" "}
               {activeLangs.en ? "✓" : "×"} · ro {activeLangs.ro ? "✓" : "×"}
             </Text>
             <Text style={styles.debugLine}>
-              Estado: {status} · Idioma: {language ?? "-"}
+              {t("debug.state")} {status} · {t("debug.language")}{" "}
+              {language ?? "-"}
             </Text>
           </View>
         )}
       </ScrollView>
       <View style={[styles.footerBand, { paddingBottom: insets.bottom + 8 }]}>
-        <Text style={styles.footer}>© EBEN-EZER Media 2025</Text>
+        <Text style={styles.footer}>{t("app.footerCopyright")}</Text>
       </View>
     </SafeAreaView>
   );
@@ -954,7 +970,9 @@ const styles = StyleSheet.create({
 export default function App() {
   return (
     <SafeAreaProvider>
-      <AppContent />
+      <I18nProvider>
+        <AppScreen />
+      </I18nProvider>
     </SafeAreaProvider>
   );
 }

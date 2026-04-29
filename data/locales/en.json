@@ -1,0 +1,74 @@
+{
+  "app": {
+    "titleMain": "Live translation",
+    "titleInfo": "Schedule & contact",
+    "subtitle": "Listen to the service in your language, at church or while watching our live stream on YouTube. Tap a language when it is live.",
+    "serviceTimes": "Service times: Sun 10:00 & 18:00 · Tue & Thu 20:00",
+    "scheduleContact": "Schedule & contact",
+    "footerCopyright": "© EBEN-EZER Media 2025",
+    "infoNavA11y": "Open schedule and contact information"
+  },
+  "uiLanguage": {
+    "label": "Interface language"
+  },
+  "languageSelector": {
+    "inactiveTitle": "No languages available yet",
+    "inactiveBody": "Translation is only available during the live stream (at church or when watching our YouTube live stream). If you need translation enabled for an event or have questions, open «Schedule & contact» and tap «Technical support».",
+    "hint": "Green = live. Red = not broadcasting. Translation runs only during the stream.",
+    "langEs": "Spanish",
+    "langEn": "English",
+    "langRo": "Romanian",
+    "a11yAvailable": "{{label}}, available",
+    "a11yUnavailable": "{{label}}, unavailable",
+    "a11yHintAvailable": "Double tap to listen in this language",
+    "a11yHintUnavailable": "Translation is only available during the live stream. Use Schedule & contact to request support."
+  },
+  "permissions": {
+    "audioTitle": "Audio permission",
+    "audioMessage": "This app needs audio access to receive the live stream.",
+    "buttonNeutral": "Ask me later",
+    "buttonNegative": "Cancel",
+    "buttonPositive": "Allow"
+  },
+  "alerts": {
+    "permissionsRequiredTitle": "Permissions required",
+    "permissionsRequiredBody": "The app needs audio access. Please enable permissions in settings.",
+    "connectionErrorTitle": "Connection error",
+    "connectionErrorBody": "Could not connect to the server. Please check your internet connection.",
+    "genericErrorTitle": "Error",
+    "genericErrorBody": "Could not start the stream. Please try again.",
+    "ok": "OK"
+  },
+  "foregroundService": {
+    "channelName": "Live stream audio",
+    "channelDescription": "Keeps the stream active in the background",
+    "notificationTitle": "EbenEzer Live",
+    "notificationText": "Listening to live stream"
+  },
+  "livePlayer": {
+    "stop": "Stop",
+    "speakerA11y": "Toggle speaker",
+    "emergencyReset": "Audio reset"
+  },
+  "churchInfo": {
+    "back": "Back",
+    "backA11y": "Back to live translation",
+    "welcome": "Welcome to the live stream with simultaneous translation from Romanian Pentecostal Church EBEN-EZER Castellón de la Plana.\n\nService schedule:",
+    "scheduleSun": "• Sundays 10:00–12:00 and 18:00–20:00",
+    "scheduleTue": "• Tuesday 20:00–21:30",
+    "scheduleThu": "• Thursday 20:00–21:30",
+    "headphonesNote": "\nIf you need headphones or adapters, contact the sound team. Thank you for joining us!",
+    "contactSupport": "Technical support",
+    "contactSupportA11y": "Request technical support via WhatsApp",
+    "addressLine": "Camí de la Donació, 89, 12004, Castellón de la Plana",
+    "scheduleShort": "Sundays 10:00–12:00, 18:00–20:00\nTue & Thu 20:00–21:30",
+    "whatsappLabel": "WhatsApp: +34 624 227 214",
+    "whatsappPrefillMessage": "Hello, I would like information about the live stream."
+  },
+  "debug": {
+    "title": "DEBUG",
+    "activeLangs": "Active languages:",
+    "state": "Status:",
+    "language": "Language:"
+  }
+}

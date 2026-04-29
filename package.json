@@ -15,6 +15,7 @@
     "build:play": "npx eas build --platform android --profile production"
   },
   "dependencies": {
+    "@react-native-async-storage/async-storage": "2.2.0",
     "@voximplant/react-native-foreground-service": "file:./local-modules",
     "expo": "^54.0.27",
     "expo-av": "~16.0.7",

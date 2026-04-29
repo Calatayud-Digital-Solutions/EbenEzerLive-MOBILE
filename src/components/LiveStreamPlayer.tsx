@@ -9,6 +9,8 @@ import {
 import { RTCView, MediaStream } from "react-native-webrtc";
 import { Volume2, VolumeX } from "lucide-react-native";
 
+import { useI18n } from "../i18n/I18nContext";
+
 interface LiveStreamPlayerProps {
   remoteStream: MediaStream | null;
   animScale: Animated.Value;
@@ -26,6 +28,8 @@ export const LiveStreamPlayer: React.FC<LiveStreamPlayerProps> = ({
   toggleSpeaker,
   emergencyAudioReset,
 }) => {
+  const { t } = useI18n();
+
   return (
     <View style={styles.audioContainer}>
       {remoteStream ? (
@@ -47,7 +51,7 @@ export const LiveStreamPlayer: React.FC<LiveStreamPlayerProps> = ({
           style={styles.stopButton}
           onPress={stopListening}
         >
-          <Text style={styles.stopLabel}>Detener</Text>
+          <Text style={styles.stopLabel}>{t("livePlayer.stop")}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[
@@ -56,7 +60,7 @@ export const LiveStreamPlayer: React.FC<LiveStreamPlayerProps> = ({
           ]}
           onPress={toggleSpeaker}
           activeOpacity={0.8}
-          accessibilityLabel="Alternar altavoz"
+          accessibilityLabel={t("livePlayer.speakerA11y")}
         >
           {speakerOn ? (
             <Volume2 color="#fff" size={22} />
@@ -70,7 +74,7 @@ export const LiveStreamPlayer: React.FC<LiveStreamPlayerProps> = ({
         onPress={emergencyAudioReset}
         activeOpacity={0.8}
       >
-        <Text style={styles.emergencyLabel}>🚨 Reset Audio</Text>
+        <Text style={styles.emergencyLabel}>🚨 {t("livePlayer.emergencyReset")}</Text>
       </TouchableOpacity>
     </View>
   );

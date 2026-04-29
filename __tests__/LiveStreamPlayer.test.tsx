@@ -1,17 +1,18 @@
 import React from "react";
-import { render } from "@testing-library/react-native";
+import { Animated } from "react-native";
+
 import { LiveStreamPlayer } from "../src/components/LiveStreamPlayer";
 
-const mockAnimScale = { _value: 1 };
+import { renderWithI18n } from "../test/renderWithI18n";
+
+const mockAnimScale = new Animated.Value(1);
 const mockStopListening = jest.fn();
 const mockToggleSpeaker = jest.fn();
 const mockEmergencyAudioReset = jest.fn();
 
 const defaultProps = {
   remoteStream: null,
-  animScale: mockAnimScale as unknown as React.ComponentProps<
-    typeof LiveStreamPlayer
-  >["animScale"],
+  animScale: mockAnimScale,
   stopListening: mockStopListening,
   speakerOn: false,
   toggleSpeaker: mockToggleSpeaker,
@@ -24,8 +25,7 @@ describe("LiveStreamPlayer", () => {
   });
 
   it("renders stop button", () => {
-    const { getByText } = render(<LiveStreamPlayer {...defaultProps} />);
+    const { getByText } = renderWithI18n(<LiveStreamPlayer {...defaultProps} />);
     expect(getByText("Detener")).toBeTruthy();
   });
-
 });
