@@ -1,7 +1,7 @@
 {
   "name": "ebenezerliveexpo",
   "license": "0BSD",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
@@ -12,7 +12,13 @@
     "postprebuild": "node scripts/post-prebuild.js",
     "test": "jest",
     "build:android:local": "JAVA_HOME=$(/usr/libexec/java_home -v 17 2>/dev/null) npx eas build --platform android --profile production --local",
-    "build:play": "npx eas build --platform android --profile production"
+    "build:play": "npx eas build --platform android --profile production",
+    "release:android": "npx eas build --platform android --profile production --auto-submit",
+    "release:ios": "npx eas build --platform ios --profile production --auto-submit",
+    "submit:latest:android": "npx eas submit --platform android --latest --profile production",
+    "submit:latest:ios": "npx eas submit --platform ios --latest --profile production",
+    "testflight:ios": "npm run release:ios",
+    "stores:submit:latest": "npm run submit:latest:android && npm run submit:latest:ios"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",

@@ -15,10 +15,12 @@
       "android": {
         "buildType": "app-bundle",
         "distribution": "store",
-        "image": "sdk-54"
+        "image": "sdk-54",
+        "autoIncrement": true
       },
       "ios": {
-        "distribution": "store"
+        "distribution": "store",
+        "autoIncrement": true
       },
       "distribution": "store"
     },
