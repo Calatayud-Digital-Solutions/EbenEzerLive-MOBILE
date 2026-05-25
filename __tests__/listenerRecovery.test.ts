@@ -7,9 +7,13 @@ import {
   RECONNECT_DEBOUNCE_MS,
   shouldRecoverOnForeground,
   shouldReconnectAfterIceGrace,
+  shouldRegisterListenerOnHeartbeat,
   shouldSendForegroundRecoveryPing,
   shouldTriggerIceReconnect,
   parseServerShutdownRetryMs,
+  resolveListenerRegistrationAction,
+  isIceConnectionHealthy,
+  buildRegisterListenerPayload,
 } from "../src/streaming/listenerRecovery";
 
 describe("listenerRecovery", () => {
@@ -101,6 +105,64 @@ describe("listenerRecovery", () => {
     it("falls back to default for invalid values", () => {
       expect(parseServerShutdownRetryMs(undefined)).toBe(3000);
       expect(parseServerShutdownRetryMs(-1)).toBe(3000);
+    });
+  });
+
+  describe("isIceConnectionHealthy", () => {
+    it("returns true for connected and completed states", () => {
+      expect(isIceConnectionHealthy("connected")).toBe(true);
+      expect(isIceConnectionHealthy("completed")).toBe(true);
+    });
+
+    it("returns false for other states", () => {
+      expect(isIceConnectionHealthy("disconnected")).toBe(false);
+      expect(isIceConnectionHealthy(undefined)).toBe(false);
+    });
+  });
+
+  describe("resolveListenerRegistrationAction", () => {
+    it("returns none when language or ws is missing", () => {
+      expect(resolveListenerRegistrationAction(false, true, "connected")).toBe(
+        "none"
+      );
+      expect(resolveListenerRegistrationAction(true, false, "connected")).toBe(
+        "none"
+      );
+    });
+
+    it("returns register-listener when WebRTC is healthy", () => {
+      expect(
+        resolveListenerRegistrationAction(true, true, "connected")
+      ).toBe("register-listener");
+      expect(
+        resolveListenerRegistrationAction(true, true, "completed")
+      ).toBe("register-listener");
+    });
+
+    it("returns request-offer when WebRTC is not yet connected", () => {
+      expect(
+        resolveListenerRegistrationAction(true, true, "checking")
+      ).toBe("request-offer");
+      expect(resolveListenerRegistrationAction(true, true, undefined)).toBe(
+        "request-offer"
+      );
+    });
+  });
+
+  describe("shouldRegisterListenerOnHeartbeat", () => {
+    it("returns true only when listening with an open websocket", () => {
+      expect(shouldRegisterListenerOnHeartbeat(true, true)).toBe(true);
+      expect(shouldRegisterListenerOnHeartbeat(false, true)).toBe(false);
+      expect(shouldRegisterListenerOnHeartbeat(true, false)).toBe(false);
+    });
+  });
+
+  describe("buildRegisterListenerPayload", () => {
+    it("builds register-listener message payload", () => {
+      expect(buildRegisterListenerPayload("en")).toEqual({
+        type: "register-listener",
+        language: "en",
+      });
     });
   });
 });

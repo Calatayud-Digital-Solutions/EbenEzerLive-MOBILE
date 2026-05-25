@@ -42,10 +42,13 @@ import {
   canAttemptReconnect,
   getHeartbeatIntervalMs,
   ICE_DISCONNECTED_GRACE_MS,
+  resolveListenerRegistrationAction,
   shouldRecoverOnForeground,
   shouldReconnectAfterIceGrace,
+  shouldRegisterListenerOnHeartbeat,
   shouldSendForegroundRecoveryPing,
   parseServerShutdownRetryMs,
+  buildRegisterListenerPayload,
   type AppStateName,
 } from "./src/streaming/listenerRecovery";
 
@@ -311,6 +314,11 @@ function AppScreen() {
 
   // --- Handlers defined BEFORE usage in effects ---
 
+  const getIceConnectionState = useCallback((): string | undefined => {
+    return (pcRef.current as { iceConnectionState?: string } | null)
+      ?.iceConnectionState;
+  }, []);
+
   const requestOffer = useCallback(() => {
     if (
       !language ||
@@ -322,6 +330,31 @@ function AppScreen() {
     wsRef.current?.send(JSON.stringify({ type: "request-offer", language }));
     setStatus("requesting");
   }, [language]);
+
+  const registerListener = useCallback(() => {
+    if (
+      !language ||
+      !wsRef.current ||
+      wsRef.current.readyState !== WebSocket.OPEN
+    ) {
+      return;
+    }
+    console.log("📋 register-listener:", language);
+    wsRef.current.send(JSON.stringify(buildRegisterListenerPayload(language)));
+  }, [language]);
+
+  const sendListenerRegistration = useCallback(() => {
+    const action = resolveListenerRegistrationAction(
+      Boolean(language),
+      wsRef.current?.readyState === WebSocket.OPEN,
+      getIceConnectionState()
+    );
+    if (action === "register-listener") {
+      registerListener();
+    } else if (action === "request-offer") {
+      requestOffer();
+    }
+  }, [language, getIceConnectionState, registerListener, requestOffer]);
 
   const sendWsPing = useCallback((source: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -580,17 +613,17 @@ function AppScreen() {
     return () => wsRef.current?.close();
   }, []);
 
-  // Re-request offer when WebSocket reconnects while user was already listening
+  // Re-register language when WebSocket reconnects while user was already listening
   useEffect(() => {
     const wasReconnecting = prevWsStateRef.current !== "open" && wsState === "open";
     prevWsStateRef.current = wsState;
     if (wasReconnecting && language && wsRef.current?.readyState === WebSocket.OPEN) {
-      console.log("🔄 WS reconnected while listening, re-requesting offer…");
-      requestOffer();
+      console.log("🔄 WS reconnected while listening, re-registering listener…");
+      sendListenerRegistration();
     }
-  }, [wsState, language, requestOffer]);
+  }, [wsState, language, sendListenerRegistration]);
 
-  // Heartbeat: platform-aware interval; faster on iOS while listening to avoid stale WS drops.
+  // Heartbeat: platform-aware interval; includes listener registration while listening.
   useEffect(() => {
     const intervalMs = getHeartbeatIntervalMs(Boolean(language), Platform.OS);
     if (wsState !== "open" || !wsRef.current) {
@@ -606,6 +639,14 @@ function AppScreen() {
     }
     heartbeatIntervalRef.current = setInterval(() => {
       sendWsPing("interval");
+      if (
+        shouldRegisterListenerOnHeartbeat(
+          Boolean(language),
+          wsRef.current?.readyState === WebSocket.OPEN
+        )
+      ) {
+        registerListener();
+      }
     }, intervalMs);
     return () => {
       if (heartbeatIntervalRef.current) {
@@ -613,7 +654,7 @@ function AppScreen() {
         heartbeatIntervalRef.current = null;
       }
     };
-  }, [wsState, language, sendWsPing]);
+  }, [wsState, language, sendWsPing, registerListener]);
 
   // --- Helper to wait for socket connection ---
   const waitForSocketConnection = useCallback(async () => {
@@ -797,9 +838,10 @@ function AppScreen() {
 
       if (shouldSendForegroundRecoveryPing(prevState, next)) {
         sendWsPing("foreground");
-        const iceState = (
-          pcRef.current as { iceConnectionState?: string } | null
-        )?.iceConnectionState;
+        if (language && wsRef.current?.readyState === WebSocket.OPEN) {
+          registerListener();
+        }
+        const iceState = getIceConnectionState();
         if (shouldRecoverOnForeground(Platform.OS, Boolean(language), iceState)) {
           void reconnectWebRtc("foreground-recovery");
         }
@@ -838,7 +880,7 @@ function AppScreen() {
       handleAppStateChange
     );
     return () => subscription?.remove();
-  }, [language, speakerOn, sendWsPing, reconnectWebRtc]);
+  }, [language, speakerOn, sendWsPing, reconnectWebRtc, registerListener, getIceConnectionState]);
 
   // --- Limpieza completa al desmontar ---
   const languageRef = useRef<string | null>(null);

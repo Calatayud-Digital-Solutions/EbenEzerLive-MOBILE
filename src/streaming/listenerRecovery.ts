@@ -68,6 +68,48 @@ export function shouldRecoverOnForeground(
 
 export const SERVER_SHUTDOWN_DEFAULT_RETRY_MS = 3000;
 
+export type ListenerRegistrationAction =
+  | "none"
+  | "register-listener"
+  | "request-offer";
+
+export function isIceConnectionHealthy(
+  iceConnectionState: string | undefined
+): boolean {
+  return (
+    iceConnectionState === "connected" ||
+    iceConnectionState === "completed"
+  );
+}
+
+export function resolveListenerRegistrationAction(
+  hasLanguage: boolean,
+  wsOpen: boolean,
+  iceConnectionState: string | undefined
+): ListenerRegistrationAction {
+  if (!hasLanguage || !wsOpen) {
+    return "none";
+  }
+  if (isIceConnectionHealthy(iceConnectionState)) {
+    return "register-listener";
+  }
+  return "request-offer";
+}
+
+export function shouldRegisterListenerOnHeartbeat(
+  hasLanguage: boolean,
+  wsOpen: boolean
+): boolean {
+  return hasLanguage && wsOpen;
+}
+
+export function buildRegisterListenerPayload(language: string): {
+  type: "register-listener";
+  language: string;
+} {
+  return { type: "register-listener", language };
+}
+
 export function parseServerShutdownRetryMs(
   retryAfterMs: number | undefined
 ): number {
