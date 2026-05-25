@@ -2,6 +2,8 @@
 
 Use this when sending a new build to Apple for review.
 
+For **internal tester builds** (TestFlight internal / Play internal track, no full store review), see **[docs/TEST_BUILDS.md](docs/TEST_BUILDS.md)**.
+
 ## 1. Build iOS on EAS
 
 ```bash
