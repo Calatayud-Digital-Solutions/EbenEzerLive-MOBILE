@@ -48,7 +48,8 @@
   "livePlayer": {
     "stop": "Detener",
     "speakerA11y": "Alternar altavoz",
-    "emergencyReset": "Reinicio de audio"
+    "emergencyReset": "Reinicio de audio",
+    "reconnecting": "Reconectando…"
   },
   "churchInfo": {
     "back": "Volver",

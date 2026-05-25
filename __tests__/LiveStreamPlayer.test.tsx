@@ -28,4 +28,11 @@ describe("LiveStreamPlayer", () => {
     const { getByText } = renderWithI18n(<LiveStreamPlayer {...defaultProps} />);
     expect(getByText("Detener")).toBeTruthy();
   });
+
+  it("shows reconnecting label when isReconnecting is true", () => {
+    const { getByText } = renderWithI18n(
+      <LiveStreamPlayer {...defaultProps} isReconnecting />
+    );
+    expect(getByText("Reconectando…")).toBeTruthy();
+  });
 });

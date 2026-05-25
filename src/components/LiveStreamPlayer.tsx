@@ -18,6 +18,7 @@ interface LiveStreamPlayerProps {
   speakerOn: boolean;
   toggleSpeaker: () => void;
   emergencyAudioReset: () => void;
+  isReconnecting?: boolean;
 }
 
 export const LiveStreamPlayer: React.FC<LiveStreamPlayerProps> = ({
@@ -27,6 +28,7 @@ export const LiveStreamPlayer: React.FC<LiveStreamPlayerProps> = ({
   speakerOn,
   toggleSpeaker,
   emergencyAudioReset,
+  isReconnecting = false,
 }) => {
   const { t } = useI18n();
 
@@ -46,6 +48,9 @@ export const LiveStreamPlayer: React.FC<LiveStreamPlayerProps> = ({
       >
         <Volume2 color="#3ee8ef" size={69} />
       </Animated.View>
+      {isReconnecting ? (
+        <Text style={styles.reconnectingLabel}>{t("livePlayer.reconnecting")}</Text>
+      ) : null}
       <View style={styles.buttonsContainer}>
         <TouchableOpacity
           style={styles.stopButton}
@@ -155,5 +160,12 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 12,
     fontWeight: "600",
+  },
+  reconnectingLabel: {
+    color: "#5de6fa",
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 8,
+    textAlign: "center",
   },
 });

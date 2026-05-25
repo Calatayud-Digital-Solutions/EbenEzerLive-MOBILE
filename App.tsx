@@ -38,6 +38,15 @@ import { LiveStreamPlayer } from "./src/components/LiveStreamPlayer";
 import { ChurchInfoScreen } from "./src/components/ChurchInfoScreen";
 import { UiLanguageSwitcher } from "./src/components/UiLanguageSwitcher";
 import { I18nProvider, useI18n } from "./src/i18n/I18nContext";
+import {
+  canAttemptReconnect,
+  getHeartbeatIntervalMs,
+  ICE_DISCONNECTED_GRACE_MS,
+  shouldRecoverOnForeground,
+  shouldReconnectAfterIceGrace,
+  shouldSendForegroundRecoveryPing,
+  type AppStateName,
+} from "./src/streaming/listenerRecovery";
 
 interface AndroidAudioPermissionCopy {
   title: string;
@@ -185,6 +194,12 @@ function AppScreen() {
   const fgStartedRef = useRef(false);
   const prevWsStateRef = useRef<typeof wsState>("init");
   const heartbeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const iceDisconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const iceReconnectAttemptRef = useRef(0);
+  const reconnectWebRtcRef = useRef<(reason: string) => Promise<void>>(
+    async () => {}
+  );
+  const appStateRef = useRef<string>(AppState.currentState);
   
   // --- Audio setup ---
   useEffect(() => {
@@ -204,6 +219,18 @@ function AppScreen() {
         console.warn("⚠️ Error configurando audio:", e);
       }
     })();
+  }, []);
+
+  const configureListenerAudio = useCallback(async () => {
+    await Audio.setAudioModeAsync({
+      staysActiveInBackground: true,
+      playsInSilentModeIOS: true,
+      allowsRecordingIOS: false,
+      shouldDuckAndroid: false,
+      playThroughEarpieceAndroid: false,
+      interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+      interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+    });
   }, []);
 
   // --- Foreground Service Android ---
@@ -295,6 +322,13 @@ function AppScreen() {
     setStatus("requesting");
   }, [language]);
 
+  const sendWsPing = useCallback((source: string) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: "ping", source }));
+      console.log(`💓 Heartbeat sent (${source})`);
+    }
+  }, []);
+
   const handleCandidate = useCallback(async (data: CandidatePayload) => {
     if (pcRef.current) {
       try {
@@ -319,9 +353,14 @@ function AppScreen() {
       interface RTCIceEvent {
         candidate: RTCIceCandidate | null;
       }
+      interface RTCPeerConnectionWithIce {
+        iceConnectionState: RTCIceConnectionState;
+      }
       const pc = (new RTCPeerConnection(rtcConfig) as unknown as RTCPeerConnection & {
         onicecandidate: (ev: RTCIceEvent) => void;
         ontrack: (ev: RTCTrackEventWithStreams) => void;
+        oniceconnectionstatechange: (() => void) | null;
+        iceConnectionState: string;
       });
       pcRef.current = pc;
 
@@ -330,6 +369,7 @@ function AppScreen() {
         if (stream) {
           setRemoteStream(stream);
           setStatus("connected");
+          iceReconnectAttemptRef.current = 0;
           if (Platform.OS === "android") {
             try {
               if (AudioModeModule?.setModeNormal)
@@ -355,6 +395,40 @@ function AppScreen() {
         }
       };
 
+      pc.oniceconnectionstatechange = () => {
+        const iceState = pc.iceConnectionState;
+        console.log(`🔄 ICE state: ${iceState}`);
+
+        if (iceState === "connected" || iceState === "completed") {
+          if (iceDisconnectTimerRef.current) {
+            clearTimeout(iceDisconnectTimerRef.current);
+            iceDisconnectTimerRef.current = null;
+          }
+          return;
+        }
+
+        if (iceState === "failed") {
+          void reconnectWebRtcRef.current("ice-failed");
+          return;
+        }
+
+        if (iceState === "disconnected") {
+          if (iceDisconnectTimerRef.current) {
+            clearTimeout(iceDisconnectTimerRef.current);
+          }
+          iceDisconnectTimerRef.current = setTimeout(() => {
+            iceDisconnectTimerRef.current = null;
+            const currentPc = pcRef.current as RTCPeerConnectionWithIce | null;
+            if (
+              currentPc &&
+              shouldReconnectAfterIceGrace(currentPc.iceConnectionState)
+            ) {
+              void reconnectWebRtcRef.current("ice-disconnected");
+            }
+          }, ICE_DISCONNECTED_GRACE_MS);
+        }
+      };
+
       try {
         await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
         candidateQueueRef.current.forEach((c) =>
@@ -377,6 +451,12 @@ function AppScreen() {
   const stopListening = useCallback(() => {
     allowWSReconnect.current = false; // Evita reconexión automática de PC
     try {
+      if (iceDisconnectTimerRef.current) {
+        clearTimeout(iceDisconnectTimerRef.current);
+        iceDisconnectTimerRef.current = null;
+      }
+      iceReconnectAttemptRef.current = 0;
+
       // Enviar stop-listening si WS está abierto
       if (wsRef.current?.readyState === WebSocket.OPEN && language) {
         wsRef.current.send(
@@ -500,11 +580,9 @@ function AppScreen() {
     }
   }, [wsState, language, requestOffer]);
 
-  // Heartbeat: Render keepalive when idle; faster interval while listening so server can drop dead sessions (e.g. force-quit).
+  // Heartbeat: platform-aware interval; faster on iOS while listening to avoid stale WS drops.
   useEffect(() => {
-    const HEARTBEAT_IDLE_MS = 4 * 60 * 1000;
-    const HEARTBEAT_LISTENING_MS = 25 * 1000;
-    const intervalMs = language ? HEARTBEAT_LISTENING_MS : HEARTBEAT_IDLE_MS;
+    const intervalMs = getHeartbeatIntervalMs(Boolean(language), Platform.OS);
     if (wsState !== "open" || !wsRef.current) {
       if (heartbeatIntervalRef.current) {
         clearInterval(heartbeatIntervalRef.current);
@@ -517,10 +595,7 @@ function AppScreen() {
       heartbeatIntervalRef.current = null;
     }
     heartbeatIntervalRef.current = setInterval(() => {
-      if (wsRef.current?.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify({ type: "ping" }));
-        console.log("💓 Heartbeat sent");
-      }
+      sendWsPing("interval");
     }, intervalMs);
     return () => {
       if (heartbeatIntervalRef.current) {
@@ -528,7 +603,7 @@ function AppScreen() {
         heartbeatIntervalRef.current = null;
       }
     };
-  }, [wsState, language]);
+  }, [wsState, language, sendWsPing]);
 
   // --- Helper to wait for socket connection ---
   const waitForSocketConnection = useCallback(async () => {
@@ -548,6 +623,53 @@ function AppScreen() {
       checkConnection();
     });
   }, []);
+
+  const reconnectWebRtc = useCallback(
+    async (reason: string) => {
+      if (!language) return;
+
+      const now = Date.now();
+      if (!canAttemptReconnect(iceReconnectAttemptRef.current, now)) {
+        console.log(`⏳ Reconnect debounced (${reason})`);
+        return;
+      }
+      iceReconnectAttemptRef.current = now;
+
+      console.log(`🔄 Reconnecting WebRTC (${reason})…`);
+      setStatus("reconnecting");
+
+      if (iceDisconnectTimerRef.current) {
+        clearTimeout(iceDisconnectTimerRef.current);
+        iceDisconnectTimerRef.current = null;
+      }
+
+      try {
+        pcRef.current?.close();
+      } catch {
+        // Peer may already be closed
+      }
+      pcRef.current = null;
+      setRemoteStream(null);
+      candidateQueueRef.current = [];
+
+      allowWSReconnect.current = true;
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+        createSocket();
+        const connected = await waitForSocketConnection();
+        if (!connected) {
+          setStatus("error");
+          return;
+        }
+      }
+
+      requestOffer();
+    },
+    [language, createSocket, waitForSocketConnection, requestOffer]
+  );
+
+  useEffect(() => {
+    reconnectWebRtcRef.current = reconnectWebRtc;
+  }, [reconnectWebRtc]);
 
   const handleSelectLanguage = useCallback(async (code: string) => {
     const active = activeLangs[code as keyof typeof activeLangs];
@@ -656,13 +778,32 @@ function AppScreen() {
     void initListening();
   }, [language, createSocket, requestOffer, waitForSocketConnection]);
 
-  // --- AppState para manejar audio al background/foreground ---
+  // --- AppState: foreground recovery (iOS) + Android audio services ---
   useEffect(() => {
     const handleAppStateChange = (nextAppState: string) => {
+      const prevState = appStateRef.current as AppStateName;
+      const next = nextAppState as AppStateName;
+      appStateRef.current = nextAppState;
+
+      if (shouldSendForegroundRecoveryPing(prevState, next)) {
+        sendWsPing("foreground");
+        const iceState = (
+          pcRef.current as { iceConnectionState?: string } | null
+        )?.iceConnectionState;
+        if (shouldRecoverOnForeground(Platform.OS, Boolean(language), iceState)) {
+          void reconnectWebRtc("foreground-recovery");
+        }
+      } else if (
+        Platform.OS === "ios" &&
+        language &&
+        (next === "background" || next === "inactive")
+      ) {
+        sendWsPing("background");
+      }
+
       if (Platform.OS === "android") {
         try {
           if (nextAppState === "active") {
-            // Al volver a foreground, respetamos el estado del altavoz que eligió el usuario
             InCallManager.setSpeakerphoneOn(speakerOn);
             console.log(
               "🔊 Audio restaurado según estado speakerOn:",
@@ -672,7 +813,6 @@ function AppScreen() {
             nextAppState === "background" ||
             nextAppState === "inactive"
           ) {
-            // Solo detener servicios auxiliares, NO tocar el altavoz ni InCallManager.stop()
             safeAudioModuleCall('stopAudioMonitoring');
             safeAudioModuleCall('stopCleanupService');
             console.log("🔇 Audio services stopped, altavoz intacto");
@@ -688,7 +828,7 @@ function AppScreen() {
       handleAppStateChange
     );
     return () => subscription?.remove();
-  }, [speakerOn]);
+  }, [language, speakerOn, sendWsPing, reconnectWebRtc]);
 
   // --- Limpieza completa al desmontar ---
   const languageRef = useRef<string | null>(null);
@@ -710,6 +850,10 @@ function AppScreen() {
   }, []);
   useEffect(() => {
     return () => {
+      if (iceDisconnectTimerRef.current) {
+        clearTimeout(iceDisconnectTimerRef.current);
+        iceDisconnectTimerRef.current = null;
+      }
       stopForegroundService().catch(() => {});
       if (wsRef.current?.readyState === WebSocket.OPEN && languageRef.current) {
         try {
@@ -733,7 +877,7 @@ function AppScreen() {
   }, [speakerOn]);
 
   // --- Emergency reset ---
-  const emergencyAudioReset = useCallback(() => {
+  const emergencyAudioReset = useCallback(async () => {
     if (Platform.OS === "android") {
       try {
         InCallManager.setSpeakerphoneOn(false);
@@ -748,12 +892,22 @@ function AppScreen() {
         else if (AudioModeModule?.setModeNormal)
           AudioModeModule.setModeNormal();
         setSpeakerOn(false);
-        console.log("🚨 Emergency audio reset executed");
+        await reconnectWebRtc("emergency-reset");
+        console.log("🚨 Emergency audio reset executed (Android)");
       } catch (e) {
         console.warn("⚠️ Error en emergency reset:", e);
       }
+      return;
     }
-  }, []);
+
+    try {
+      await configureListenerAudio();
+      await reconnectWebRtc("emergency-reset");
+      console.log("🚨 Emergency audio reset executed (iOS)");
+    } catch (e) {
+      console.warn("⚠️ Error en emergency reset iOS:", e);
+    }
+  }, [configureListenerAudio, reconnectWebRtc]);
 
   // --- Animación audio ---
   const animScale = useRef(new Animated.Value(1)).current;
@@ -836,7 +990,7 @@ function AppScreen() {
       >
         <Text style={styles.subtitle}>{t("app.subtitle")}</Text>
         <UiLanguageSwitcher />
-        {!language || !remoteStream ? (
+        {!language || (!remoteStream && status !== "reconnecting") ? (
           <LanguageSelector
             activeLangs={activeLangs}
             onSelectLanguage={handleSelectLanguage}
@@ -849,6 +1003,7 @@ function AppScreen() {
             speakerOn={speakerOn}
             toggleSpeaker={toggleSpeaker}
             emergencyAudioReset={emergencyAudioReset}
+            isReconnecting={status === "reconnecting"}
           />
         )}
         <View style={styles.serviceTimesBar}>

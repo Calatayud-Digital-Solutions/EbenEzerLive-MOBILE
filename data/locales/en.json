@@ -48,7 +48,8 @@
   "livePlayer": {
     "stop": "Stop",
     "speakerA11y": "Toggle speaker",
-    "emergencyReset": "Audio reset"
+    "emergencyReset": "Audio reset",
+    "reconnecting": "Reconnecting…"
   },
   "churchInfo": {
     "back": "Back",

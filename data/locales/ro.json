@@ -48,7 +48,8 @@
   "livePlayer": {
     "stop": "Oprește",
     "speakerA11y": "Comută difuzorul",
-    "emergencyReset": "Reset audio"
+    "emergencyReset": "Reset audio",
+    "reconnecting": "Reconectare…"
   },
   "churchInfo": {
     "back": "Înapoi",
