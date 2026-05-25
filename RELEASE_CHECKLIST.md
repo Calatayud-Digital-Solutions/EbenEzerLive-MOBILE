@@ -8,7 +8,7 @@ Use this when sending a new build to Apple for review.
 npx eas build --platform ios --profile production
 ```
 
-Wait for the build to finish in [expo.dev](https://expo.dev). Current version: **1.0.1**, build **11**.
+Wait for the build to finish in [expo.dev](https://expo.dev). Current version: **1.0.4**, build **17**.
 
 ## 2. Submit build to App Store Connect
 
@@ -36,7 +36,7 @@ This avoids rejections for “inactive buttons” when reviewers test without th
 
 ## 4. Submit for review
 
-In App Store Connect, submit the new version (1.0.1 build 11) for review.
+In App Store Connect, submit the new version (1.0.4 build 17) for review.
 
 ---
 

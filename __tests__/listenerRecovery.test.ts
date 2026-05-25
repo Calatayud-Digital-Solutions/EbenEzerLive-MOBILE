@@ -9,6 +9,7 @@ import {
   shouldReconnectAfterIceGrace,
   shouldSendForegroundRecoveryPing,
   shouldTriggerIceReconnect,
+  parseServerShutdownRetryMs,
 } from "../src/streaming/listenerRecovery";
 
 describe("listenerRecovery", () => {
@@ -89,6 +90,17 @@ describe("listenerRecovery", () => {
       );
       expect(shouldRecoverOnForeground("ios", true, "connected")).toBe(false);
       expect(shouldRecoverOnForeground("ios", false, "failed")).toBe(false);
+    });
+  });
+
+  describe("parseServerShutdownRetryMs", () => {
+    it("returns custom delay when valid", () => {
+      expect(parseServerShutdownRetryMs(5000)).toBe(5000);
+    });
+
+    it("falls back to default for invalid values", () => {
+      expect(parseServerShutdownRetryMs(undefined)).toBe(3000);
+      expect(parseServerShutdownRetryMs(-1)).toBe(3000);
     });
   });
 });

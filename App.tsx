@@ -45,6 +45,7 @@ import {
   shouldRecoverOnForeground,
   shouldReconnectAfterIceGrace,
   shouldSendForegroundRecoveryPing,
+  parseServerShutdownRetryMs,
   type AppStateName,
 } from "./src/streaming/listenerRecovery";
 
@@ -557,6 +558,15 @@ function AppScreen() {
                 }
                 if (data.type === "offer") handleOffer(data);
                 if (data.type === "candidate") handleCandidate(data);
+                if (data.type === "server-shutdown") {
+                  const retryMs = parseServerShutdownRetryMs(data.retryAfterMs);
+                  console.warn(
+                    `🛑 Server shutdown notice, reconnecting in ${retryMs}ms…`
+                  );
+                  setTimeout(() => {
+                    void reconnectWebRtcRef.current("server-shutdown");
+                  }, retryMs);
+                }
               } catch (err) {
                 console.error("⚠️ Error parsing WS:", err);
               }

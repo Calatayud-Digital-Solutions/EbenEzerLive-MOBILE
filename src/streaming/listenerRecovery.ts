@@ -65,3 +65,18 @@ export function shouldRecoverOnForeground(
   }
   return shouldTriggerIceReconnect(iceState);
 }
+
+export const SERVER_SHUTDOWN_DEFAULT_RETRY_MS = 3000;
+
+export function parseServerShutdownRetryMs(
+  retryAfterMs: number | undefined
+): number {
+  if (
+    typeof retryAfterMs === "number" &&
+    Number.isFinite(retryAfterMs) &&
+    retryAfterMs >= 0
+  ) {
+    return retryAfterMs;
+  }
+  return SERVER_SHUTDOWN_DEFAULT_RETRY_MS;
+}
