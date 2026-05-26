@@ -103,11 +103,37 @@ export function shouldRegisterListenerOnHeartbeat(
   return hasLanguage && wsOpen;
 }
 
-export function buildRegisterListenerPayload(language: string): {
+export function buildRegisterListenerPayload(
+  language: string,
+  clientId: string
+): {
   type: "register-listener";
   language: string;
+  clientId: string;
 } {
-  return { type: "register-listener", language };
+  return { type: "register-listener", language, clientId };
+}
+
+export function buildRequestOfferPayload(
+  language: string,
+  clientId: string
+): {
+  type: "request-offer";
+  language: string;
+  clientId: string;
+} {
+  return { type: "request-offer", language, clientId };
+}
+
+export function buildStopListeningPayload(
+  language: string,
+  clientId: string
+): {
+  type: "stop-listening";
+  language: string;
+  clientId: string;
+} {
+  return { type: "stop-listening", language, clientId };
 }
 
 export function parseServerShutdownRetryMs(

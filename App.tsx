@@ -49,8 +49,14 @@ import {
   shouldSendForegroundRecoveryPing,
   parseServerShutdownRetryMs,
   buildRegisterListenerPayload,
+  buildRequestOfferPayload,
+  buildStopListeningPayload,
   type AppStateName,
 } from "./src/streaming/listenerRecovery";
+import {
+  getOrCreatePersistentClientId,
+  buildIdentifyPayload,
+} from "./src/streaming/persistentClientId";
 
 interface AndroidAudioPermissionCopy {
   title: string;
@@ -204,7 +210,38 @@ function AppScreen() {
     async () => {}
   );
   const appStateRef = useRef<string>(AppState.currentState);
-  
+  const clientIdRef = useRef<string | null>(null);
+
+  const ensureClientId = useCallback(async (): Promise<string> => {
+    if (clientIdRef.current) {
+      return clientIdRef.current;
+    }
+    const id = await getOrCreatePersistentClientId();
+    clientIdRef.current = id;
+    return id;
+  }, []);
+
+  const sendIdentify = useCallback(() => {
+    const clientId = clientIdRef.current;
+    if (
+      !clientId ||
+      !wsRef.current ||
+      wsRef.current.readyState !== WebSocket.OPEN
+    ) {
+      return;
+    }
+    wsRef.current.send(JSON.stringify(buildIdentifyPayload(clientId)));
+    console.log("🆔 identify sent:", clientId);
+  }, []);
+
+  useEffect(() => {
+    void getOrCreatePersistentClientId().then((id) => {
+      clientIdRef.current = id;
+      console.log("🆔 Persistent listener clientId ready");
+      sendIdentify();
+    });
+  }, [sendIdentify]);
+
   // --- Audio setup ---
   useEffect(() => {
     (async () => {
@@ -320,27 +357,35 @@ function AppScreen() {
   }, []);
 
   const requestOffer = useCallback(() => {
+    const clientId = clientIdRef.current;
     if (
       !language ||
+      !clientId ||
       !wsRef.current ||
       wsRef.current?.readyState !== WebSocket.OPEN
     )
       return;
     console.log("📩 request-offer:", language);
-    wsRef.current?.send(JSON.stringify({ type: "request-offer", language }));
+    wsRef.current?.send(
+      JSON.stringify(buildRequestOfferPayload(language, clientId))
+    );
     setStatus("requesting");
   }, [language]);
 
   const registerListener = useCallback(() => {
+    const clientId = clientIdRef.current;
     if (
       !language ||
+      !clientId ||
       !wsRef.current ||
       wsRef.current.readyState !== WebSocket.OPEN
     ) {
       return;
     }
     console.log("📋 register-listener:", language);
-    wsRef.current.send(JSON.stringify(buildRegisterListenerPayload(language)));
+    wsRef.current.send(
+      JSON.stringify(buildRegisterListenerPayload(language, clientId))
+    );
   }, [language]);
 
   const sendListenerRegistration = useCallback(() => {
@@ -390,12 +435,15 @@ function AppScreen() {
       interface RTCPeerConnectionWithIce {
         iceConnectionState: RTCIceConnectionState;
       }
-      const pc = (new RTCPeerConnection(rtcConfig) as unknown as RTCPeerConnection & {
+      type PeerConnectionWithHandlers = RTCPeerConnection & {
         onicecandidate: (ev: RTCIceEvent) => void;
         ontrack: (ev: RTCTrackEventWithStreams) => void;
         oniceconnectionstatechange: (() => void) | null;
         iceConnectionState: string;
-      });
+      };
+      const pc = new RTCPeerConnection(
+        rtcConfig
+      ) as PeerConnectionWithHandlers;
       pcRef.current = pc;
 
       pc.ontrack = (event: RTCTrackEventWithStreams) => {
@@ -492,9 +540,10 @@ function AppScreen() {
       iceReconnectAttemptRef.current = 0;
 
       // Enviar stop-listening si WS está abierto
-      if (wsRef.current?.readyState === WebSocket.OPEN && language) {
+      const clientId = clientIdRef.current;
+      if (wsRef.current?.readyState === WebSocket.OPEN && language && clientId) {
         wsRef.current.send(
-          JSON.stringify({ type: "stop-listening", language })
+          JSON.stringify(buildStopListeningPayload(language, clientId))
         );
         console.log("📩 stop-listening enviado");
       }
@@ -544,6 +593,7 @@ function AppScreen() {
       setWsState("open");
       setWsError(null);
       console.log("✅ WS conectado");
+      sendIdentify();
     };
     ws.onerror = (e: ErrorEvent | Event) => {
       const msg = e instanceof ErrorEvent ? String(e.message) : JSON.stringify(e);
@@ -559,22 +609,7 @@ function AppScreen() {
       setTimeout(() => createSocket(), 4000);
     };
 
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === "active-broadcasts") {
-          setActiveLangs({
-            es: !!data.active?.es,
-            en: !!data.active?.en,
-            ro: !!data.active?.ro,
-          });
-          console.log("📡 active-broadcasts recibido:", data.active);
-        }
-      } catch (err) {
-        console.error("⚠️ Error parsing WS:", err);
-      }
-    };
-  }, []);
+  }, [sendIdentify]);
 
   useEffect(() => {
     if (socket) {
@@ -617,11 +652,16 @@ function AppScreen() {
   useEffect(() => {
     const wasReconnecting = prevWsStateRef.current !== "open" && wsState === "open";
     prevWsStateRef.current = wsState;
-    if (wasReconnecting && language && wsRef.current?.readyState === WebSocket.OPEN) {
-      console.log("🔄 WS reconnected while listening, re-registering listener…");
-      sendListenerRegistration();
+    if (wasReconnecting && wsRef.current?.readyState === WebSocket.OPEN) {
+      sendIdentify();
+      if (language) {
+        console.log(
+          "🔄 WS reconnected while listening, re-registering listener…"
+        );
+        sendListenerRegistration();
+      }
     }
-  }, [wsState, language, sendListenerRegistration]);
+  }, [wsState, language, sendIdentify, sendListenerRegistration]);
 
   // Heartbeat: platform-aware interval; includes listener registration while listening.
   useEffect(() => {
@@ -804,6 +844,8 @@ function AppScreen() {
         return;
       }
 
+      await ensureClientId();
+
       // WS: si está cerrado, recrearlo
       if (!wsRef.current || wsRef.current?.readyState !== WebSocket.OPEN) {
         console.log("🔄 WebSocket cerrado, recreando...");
@@ -814,6 +856,8 @@ function AppScreen() {
         // Esperar a que se abra
         await waitForSocketConnection();
       }
+
+      sendIdentify();
 
       // Servicios Android
       if (Platform.OS === "android") {
@@ -827,7 +871,14 @@ function AppScreen() {
     };
 
     void initListening();
-  }, [language, createSocket, requestOffer, waitForSocketConnection]);
+  }, [
+    language,
+    createSocket,
+    requestOffer,
+    waitForSocketConnection,
+    ensureClientId,
+    sendIdentify,
+  ]);
 
   // --- AppState: foreground recovery (iOS) + Android audio services ---
   useEffect(() => {
@@ -907,10 +958,17 @@ function AppScreen() {
         iceDisconnectTimerRef.current = null;
       }
       stopForegroundService().catch(() => {});
-      if (wsRef.current?.readyState === WebSocket.OPEN && languageRef.current) {
+      const clientId = clientIdRef.current;
+      if (
+        wsRef.current?.readyState === WebSocket.OPEN &&
+        languageRef.current &&
+        clientId
+      ) {
         try {
           wsRef.current.send(
-            JSON.stringify({ type: "stop-listening", language: languageRef.current })
+            JSON.stringify(
+              buildStopListeningPayload(languageRef.current, clientId)
+            )
           );
         } catch {
           // Ignore if send fails during unmount

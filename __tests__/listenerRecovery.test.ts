@@ -14,6 +14,8 @@ import {
   resolveListenerRegistrationAction,
   isIceConnectionHealthy,
   buildRegisterListenerPayload,
+  buildRequestOfferPayload,
+  buildStopListeningPayload,
 } from "../src/streaming/listenerRecovery";
 
 describe("listenerRecovery", () => {
@@ -158,10 +160,31 @@ describe("listenerRecovery", () => {
   });
 
   describe("buildRegisterListenerPayload", () => {
-    it("builds register-listener message payload", () => {
-      expect(buildRegisterListenerPayload("en")).toEqual({
+    it("builds register-listener message payload with clientId", () => {
+      expect(buildRegisterListenerPayload("en", "client-1")).toEqual({
         type: "register-listener",
         language: "en",
+        clientId: "client-1",
+      });
+    });
+  });
+
+  describe("buildRequestOfferPayload", () => {
+    it("builds request-offer message payload with clientId", () => {
+      expect(buildRequestOfferPayload("es", "client-2")).toEqual({
+        type: "request-offer",
+        language: "es",
+        clientId: "client-2",
+      });
+    });
+  });
+
+  describe("buildStopListeningPayload", () => {
+    it("builds stop-listening message payload with clientId", () => {
+      expect(buildStopListeningPayload("ro", "client-3")).toEqual({
+        type: "stop-listening",
+        language: "ro",
+        clientId: "client-3",
       });
     });
   });
