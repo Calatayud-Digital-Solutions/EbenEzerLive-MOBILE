@@ -44,3 +44,7 @@ CONTACT_PHONE, CONTACT_WHATSAPP, CONTACT_EMAIL (opcional).
 
 Importante: Nunca subir el archivo .env a repositorios públicos.
 
+### Logs en la app móvil
+
+En producción la app escribe logs JSON solo para **warn** y **error** (desconexiones, ICE degradado, reinicios del servidor). La lista completa de eventos y cómo filtrarlos está en [webrtc-live/README.md](../webrtc-live/README.md#logs-estructurados-servidor-de-señalización) (sección *App móvil*).
+

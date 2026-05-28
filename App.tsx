@@ -40,12 +40,16 @@ import { UiLanguageSwitcher } from "./src/components/UiLanguageSwitcher";
 import { I18nProvider, useI18n } from "./src/i18n/I18nContext";
 import {
   canAttemptReconnect,
+  computeWsReconnectDelayMs,
   getHeartbeatIntervalMs,
   ICE_DISCONNECTED_GRACE_MS,
-  resolveListenerRegistrationAction,
+  isServerShutdownMessage,
+  resolveStreamRecoveryAction,
   shouldRecoverOnForeground,
   shouldReconnectAfterIceGrace,
-  shouldRegisterListenerOnHeartbeat,
+  shouldRequestOfferOnBroadcastActive,
+  shouldRequestOfferOnWsReconnect,
+  shouldShowLivePlayerWhileListening,
   shouldSendForegroundRecoveryPing,
   parseServerShutdownRetryMs,
   buildRegisterListenerPayload,
@@ -57,6 +61,7 @@ import {
   getOrCreatePersistentClientId,
   buildIdentifyPayload,
 } from "./src/streaming/persistentClientId";
+import { errorContext, logStreamEvent } from "./src/streaming/streamLogger";
 
 interface AndroidAudioPermissionCopy {
   title: string;
@@ -184,9 +189,6 @@ function AppScreen() {
     en: false,
     ro: false,
   });
-  useEffect(() => {
-    console.log("🌍 Idiomas activos actualizados:", activeLangs);
-  }, [activeLangs]);
 
   const [language, setLanguage] = useState<string | null>(null);
   const [status, setStatus] = useState("idle");
@@ -211,6 +213,15 @@ function AppScreen() {
   );
   const appStateRef = useRef<string>(AppState.currentState);
   const clientIdRef = useRef<string | null>(null);
+  const wsReconnectAttemptRef = useRef(0);
+  const wsReconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const serverRecoveryPendingRef = useRef(false);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
+  const requestOfferRef = useRef<() => void>(() => {});
+  const createSocketRef = useRef<() => void>(() => {});
+  const languageRef = useRef<string | null>(null);
+  languageRef.current = language;
+  remoteStreamRef.current = remoteStream;
 
   const ensureClientId = useCallback(async (): Promise<string> => {
     if (clientIdRef.current) {
@@ -231,13 +242,13 @@ function AppScreen() {
       return;
     }
     wsRef.current.send(JSON.stringify(buildIdentifyPayload(clientId)));
-    console.log("🆔 identify sent:", clientId);
+    logStreamEvent("verbose", "ws.identify.sent", { clientId });
   }, []);
 
   useEffect(() => {
     void getOrCreatePersistentClientId().then((id) => {
       clientIdRef.current = id;
-      console.log("🆔 Persistent listener clientId ready");
+      logStreamEvent("verbose", "ws.client_id.ready", { clientId: id });
       sendIdentify();
     });
   }, [sendIdentify]);
@@ -365,7 +376,7 @@ function AppScreen() {
       wsRef.current?.readyState !== WebSocket.OPEN
     )
       return;
-    console.log("📩 request-offer:", language);
+    logStreamEvent("verbose", "signaling.request_offer", { language });
     wsRef.current?.send(
       JSON.stringify(buildRequestOfferPayload(language, clientId))
     );
@@ -382,29 +393,16 @@ function AppScreen() {
     ) {
       return;
     }
-    console.log("📋 register-listener:", language);
+    logStreamEvent("verbose", "signaling.register_listener", { language });
     wsRef.current.send(
       JSON.stringify(buildRegisterListenerPayload(language, clientId))
     );
   }, [language]);
 
-  const sendListenerRegistration = useCallback(() => {
-    const action = resolveListenerRegistrationAction(
-      Boolean(language),
-      wsRef.current?.readyState === WebSocket.OPEN,
-      getIceConnectionState()
-    );
-    if (action === "register-listener") {
-      registerListener();
-    } else if (action === "request-offer") {
-      requestOffer();
-    }
-  }, [language, getIceConnectionState, registerListener, requestOffer]);
-
   const sendWsPing = useCallback((source: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: "ping", source }));
-      console.log(`💓 Heartbeat sent (${source})`);
+      logStreamEvent("verbose", "ws.heartbeat", { source });
     }
   }, []);
 
@@ -479,14 +477,24 @@ function AppScreen() {
 
       pc.oniceconnectionstatechange = () => {
         const iceState = pc.iceConnectionState;
-        console.log(`🔄 ICE state: ${iceState}`);
 
         if (iceState === "connected" || iceState === "completed") {
           if (iceDisconnectTimerRef.current) {
             clearTimeout(iceDisconnectTimerRef.current);
             iceDisconnectTimerRef.current = null;
           }
+          logStreamEvent("verbose", "webrtc.ice.connected", {
+            language: language ?? null,
+            iceState,
+          });
           return;
+        }
+
+        if (iceState === "failed" || iceState === "disconnected") {
+          logStreamEvent("warn", "webrtc.ice.degraded", {
+            language: language ?? null,
+            iceState,
+          });
         }
 
         if (iceState === "failed") {
@@ -583,33 +591,87 @@ function AppScreen() {
   }, [language, stopForegroundService]);
 
   // --- WebSocket ---
+  const scheduleWsReconnect = useCallback(() => {
+    if (!allowWSReconnect.current) {
+      return;
+    }
+    if (wsReconnectTimerRef.current) {
+      return;
+    }
+    wsReconnectAttemptRef.current += 1;
+    const delay = computeWsReconnectDelayMs(wsReconnectAttemptRef.current);
+    logStreamEvent(
+      "info",
+      "ws.reconnect.scheduled",
+      { attempt: wsReconnectAttemptRef.current, delayMs: delay }
+    );
+    wsReconnectTimerRef.current = setTimeout(() => {
+      wsReconnectTimerRef.current = null;
+      createSocketRef.current();
+    }, delay);
+  }, []);
+
   const createSocket = useCallback(() => {
-    console.log("🌐 Creando WebSocket…");
+    if (wsReconnectTimerRef.current) {
+      clearTimeout(wsReconnectTimerRef.current);
+      wsReconnectTimerRef.current = null;
+    }
+
+    if (wsRef.current) {
+      try {
+        wsRef.current.onopen = null;
+        wsRef.current.onclose = null;
+        wsRef.current.onerror = null;
+        wsRef.current.onmessage = null;
+        wsRef.current.close();
+      } catch {
+        // Socket may already be closed
+      }
+      wsRef.current = null;
+    }
+
+    logStreamEvent("verbose", "ws.connecting", {});
     const ws = new WebSocket(SIGNALING_URL);
     wsRef.current = ws;
     setSocket(ws);
 
     ws.onopen = () => {
+      wsReconnectAttemptRef.current = 0;
+      serverRecoveryPendingRef.current = false;
       setWsState("open");
       setWsError(null);
-      console.log("✅ WS conectado");
+      logStreamEvent("info", "ws.connected", {
+        clientId: clientIdRef.current,
+        language: languageRef.current,
+      });
       sendIdentify();
     };
     ws.onerror = (e: ErrorEvent | Event) => {
       const msg = e instanceof ErrorEvent ? String(e.message) : JSON.stringify(e);
       setWsState("error");
       setWsError(msg);
-      console.warn("⚠️ WS error", msg);
+      logStreamEvent("warn", "ws.error", {
+        message: msg,
+        language: languageRef.current,
+      });
     };
     ws.onclose = () => {
       setWsState("close");
-      console.warn("🔌 WS cerrado");
-      if (!allowWSReconnect.current) return;
-      console.log("♻️ Reintentando conexión WS en 4s…");
-      setTimeout(() => createSocket(), 4000);
+      logStreamEvent("warn", "ws.disconnected", {
+        language: languageRef.current,
+        clientId: clientIdRef.current,
+      });
+      if (!allowWSReconnect.current) {
+        return;
+      }
+      scheduleWsReconnect();
     };
 
-  }, [sendIdentify]);
+  }, [sendIdentify, scheduleWsReconnect]);
+
+  useEffect(() => {
+    createSocketRef.current = createSocket;
+  }, [createSocket]);
 
   useEffect(() => {
     if (socket) {
@@ -617,26 +679,57 @@ function AppScreen() {
             try {
                 const data = JSON.parse(event.data);
                 if (data.type === "active-broadcasts") {
-                  setActiveLangs({
+                  const active = {
                     es: !!data.active?.es,
                     en: !!data.active?.en,
                     ro: !!data.active?.ro,
+                  };
+                  setActiveLangs(active);
+                  logStreamEvent("verbose", "signaling.active_broadcasts", {
+                    active,
                   });
-                  console.log("📡 active-broadcasts recibido:", data.active);
+
+                  const lang = languageRef.current;
+                  if (
+                    lang &&
+                    shouldRequestOfferOnBroadcastActive(
+                      lang,
+                      active,
+                      Boolean(remoteStreamRef.current),
+                      (pcRef.current as { iceConnectionState?: string } | null)
+                        ?.iceConnectionState
+                    ) &&
+                    wsRef.current?.readyState === WebSocket.OPEN
+                  ) {
+                    logStreamEvent("info", "signaling.broadcast_resumed", {
+                      language: lang,
+                    });
+                    requestOfferRef.current();
+                  }
                 }
                 if (data.type === "offer") handleOffer(data);
                 if (data.type === "candidate") handleCandidate(data);
-                if (data.type === "server-shutdown") {
+                if (isServerShutdownMessage(data)) {
+                  serverRecoveryPendingRef.current = true;
                   const retryMs = parseServerShutdownRetryMs(data.retryAfterMs);
-                  console.warn(
-                    `🛑 Server shutdown notice, reconnecting in ${retryMs}ms…`
-                  );
+                  logStreamEvent("warn", "server.shutdown", {
+                    retryMs,
+                    language: languageRef.current,
+                  });
+                  if (languageRef.current) {
+                    setStatus("reconnecting");
+                  }
                   setTimeout(() => {
                     void reconnectWebRtcRef.current("server-shutdown");
                   }, retryMs);
+                  try {
+                    wsRef.current?.close();
+                  } catch {
+                    // Socket may already be closing
+                  }
                 }
               } catch (err) {
-                console.error("⚠️ Error parsing WS:", err);
+                logStreamEvent("error", "ws.message.parse_failed", errorContext(err));
               }
         }
     }
@@ -645,7 +738,13 @@ function AppScreen() {
   useEffect(() => {
     allowWSReconnect.current = true;
     createSocket();
-    return () => wsRef.current?.close();
+    return () => {
+      if (wsReconnectTimerRef.current) {
+        clearTimeout(wsReconnectTimerRef.current);
+        wsReconnectTimerRef.current = null;
+      }
+      wsRef.current?.close();
+    };
   }, []);
 
   // Re-register language when WebSocket reconnects while user was already listening
@@ -654,14 +753,15 @@ function AppScreen() {
     prevWsStateRef.current = wsState;
     if (wasReconnecting && wsRef.current?.readyState === WebSocket.OPEN) {
       sendIdentify();
-      if (language) {
-        console.log(
-          "🔄 WS reconnected while listening, re-registering listener…"
-        );
-        sendListenerRegistration();
+      if (language && shouldRequestOfferOnWsReconnect(true)) {
+        logStreamEvent("info", "ws.reconnected", {
+          language,
+          clientId: clientIdRef.current,
+        });
+        requestOffer();
       }
     }
-  }, [wsState, language, sendIdentify, sendListenerRegistration]);
+  }, [wsState, language, sendIdentify, requestOffer]);
 
   // Heartbeat: platform-aware interval; includes listener registration while listening.
   useEffect(() => {
@@ -679,13 +779,16 @@ function AppScreen() {
     }
     heartbeatIntervalRef.current = setInterval(() => {
       sendWsPing("interval");
-      if (
-        shouldRegisterListenerOnHeartbeat(
-          Boolean(language),
-          wsRef.current?.readyState === WebSocket.OPEN
-        )
-      ) {
+      const recoveryAction = resolveStreamRecoveryAction(
+        Boolean(language),
+        wsRef.current?.readyState === WebSocket.OPEN,
+        Boolean(remoteStreamRef.current),
+        getIceConnectionState()
+      );
+      if (recoveryAction === "register-listener") {
         registerListener();
+      } else if (recoveryAction === "request-offer") {
+        requestOffer();
       }
     }, intervalMs);
     return () => {
@@ -702,10 +805,13 @@ function AppScreen() {
     return new Promise<boolean>((resolve) => {
       const checkConnection = () => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {
-          console.log("✅ WebSocket conectado, procediendo…");
+          logStreamEvent("verbose", "ws.wait.connected", {});
           resolve(true);
         } else if (Date.now() - startTime > 10000) {
-          console.warn("⚠️ Timeout esperando WebSocket");
+          logStreamEvent("warn", "ws.wait.timeout", {
+            language: languageRef.current,
+            timeoutMs: 10000,
+          });
           resolve(false);
         } else {
           setTimeout(checkConnection, 100);
@@ -721,12 +827,15 @@ function AppScreen() {
 
       const now = Date.now();
       if (!canAttemptReconnect(iceReconnectAttemptRef.current, now)) {
-        console.log(`⏳ Reconnect debounced (${reason})`);
+        logStreamEvent("verbose", "webrtc.reconnect.debounced", { reason });
         return;
       }
       iceReconnectAttemptRef.current = now;
 
-      console.log(`🔄 Reconnecting WebRTC (${reason})…`);
+      logStreamEvent("warn", "webrtc.reconnect.started", {
+        reason,
+        language,
+      });
       setStatus("reconnecting");
 
       if (iceDisconnectTimerRef.current) {
@@ -748,7 +857,7 @@ function AppScreen() {
         createSocket();
         const connected = await waitForSocketConnection();
         if (!connected) {
-          setStatus("error");
+          setStatus("reconnecting");
           return;
         }
       }
@@ -761,6 +870,10 @@ function AppScreen() {
   useEffect(() => {
     reconnectWebRtcRef.current = reconnectWebRtc;
   }, [reconnectWebRtc]);
+
+  useEffect(() => {
+    requestOfferRef.current = requestOffer;
+  }, [requestOffer]);
 
   const handleSelectLanguage = useCallback(async (code: string) => {
     const active = activeLangs[code as keyof typeof activeLangs];
@@ -934,8 +1047,6 @@ function AppScreen() {
   }, [language, speakerOn, sendWsPing, reconnectWebRtc, registerListener, getIceConnectionState]);
 
   // --- Limpieza completa al desmontar ---
-  const languageRef = useRef<string | null>(null);
-  languageRef.current = language;
   const cleanupAudioOnUnmount = useCallback(() => {
     if (Platform.OS !== "android") return;
     try {
@@ -1100,7 +1211,7 @@ function AppScreen() {
       >
         <Text style={styles.subtitle}>{t("app.subtitle")}</Text>
         <UiLanguageSwitcher />
-        {!language || (!remoteStream && status !== "reconnecting") ? (
+        {!shouldShowLivePlayerWhileListening(language, status) ? (
           <LanguageSelector
             activeLangs={activeLangs}
             onSelectLanguage={handleSelectLanguage}
@@ -1113,7 +1224,13 @@ function AppScreen() {
             speakerOn={speakerOn}
             toggleSpeaker={toggleSpeaker}
             emergencyAudioReset={emergencyAudioReset}
-            isReconnecting={status === "reconnecting"}
+            isReconnecting={
+              status === "reconnecting" ||
+              status === "requesting" ||
+              status === "connecting" ||
+              status === "error" ||
+              !remoteStream
+            }
           />
         )}
         <View style={styles.serviceTimesBar}>

@@ -67,6 +67,56 @@ export function shouldRecoverOnForeground(
 }
 
 export const SERVER_SHUTDOWN_DEFAULT_RETRY_MS = 3000;
+export const WS_RECONNECT_MAX_DELAY_MS = 30_000;
+
+export function computeWsReconnectDelayMs(attempt: number): number {
+  const normalized = Math.max(1, attempt);
+  return Math.min(WS_RECONNECT_MAX_DELAY_MS, 2 ** (normalized - 1) * 1000);
+}
+
+export function shouldRequestOfferOnBroadcastActive(
+  language: string | null,
+  activeLangs: Record<string, boolean>,
+  hasRemoteStream: boolean,
+  iceConnectionState: string | undefined
+): boolean {
+  if (!language || !activeLangs[language]) {
+    return false;
+  }
+  if (hasRemoteStream && isIceConnectionHealthy(iceConnectionState)) {
+    return false;
+  }
+  return true;
+}
+
+export function resolveStreamRecoveryAction(
+  hasLanguage: boolean,
+  wsOpen: boolean,
+  hasRemoteStream: boolean,
+  iceConnectionState: string | undefined
+): ListenerRegistrationAction {
+  if (!hasLanguage || !wsOpen) {
+    return "none";
+  }
+  if (hasRemoteStream && isIceConnectionHealthy(iceConnectionState)) {
+    return "register-listener";
+  }
+  return "request-offer";
+}
+
+export function shouldShowLivePlayerWhileListening(
+  language: string | null,
+  status: string
+): boolean {
+  return Boolean(language) && status !== "idle";
+}
+
+export function isServerShutdownMessage(data: {
+  type?: string;
+  retryAfterMs?: number;
+}): boolean {
+  return data.type === "server-shutdown";
+}
 
 export type ListenerRegistrationAction =
   | "none"
@@ -80,6 +130,10 @@ export function isIceConnectionHealthy(
     iceConnectionState === "connected" ||
     iceConnectionState === "completed"
   );
+}
+
+export function shouldRequestOfferOnWsReconnect(hasLanguage: boolean): boolean {
+  return hasLanguage;
 }
 
 export function resolveListenerRegistrationAction(

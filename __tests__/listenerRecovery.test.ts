@@ -1,5 +1,6 @@
 import {
   canAttemptReconnect,
+  computeWsReconnectDelayMs,
   getHeartbeatIntervalMs,
   HEARTBEAT_IDLE_MS,
   HEARTBEAT_LISTENING_ANDROID_MS,
@@ -11,6 +12,11 @@ import {
   shouldSendForegroundRecoveryPing,
   shouldTriggerIceReconnect,
   parseServerShutdownRetryMs,
+  shouldRequestOfferOnWsReconnect,
+  resolveStreamRecoveryAction,
+  shouldRequestOfferOnBroadcastActive,
+  shouldShowLivePlayerWhileListening,
+  isServerShutdownMessage,
   resolveListenerRegistrationAction,
   isIceConnectionHealthy,
   buildRegisterListenerPayload,
@@ -119,6 +125,70 @@ describe("listenerRecovery", () => {
     it("returns false for other states", () => {
       expect(isIceConnectionHealthy("disconnected")).toBe(false);
       expect(isIceConnectionHealthy(undefined)).toBe(false);
+    });
+  });
+
+  describe("resolveStreamRecoveryAction", () => {
+    it("requests offer when listening without a healthy stream", () => {
+      expect(
+        resolveStreamRecoveryAction(true, true, false, undefined)
+      ).toBe("request-offer");
+      expect(
+        resolveStreamRecoveryAction(true, true, true, "disconnected")
+      ).toBe("request-offer");
+    });
+
+    it("registers listener when stream is healthy", () => {
+      expect(
+        resolveStreamRecoveryAction(true, true, true, "connected")
+      ).toBe("register-listener");
+    });
+  });
+
+  describe("shouldRequestOfferOnBroadcastActive", () => {
+    it("returns true when broadcast resumes without stream", () => {
+      expect(
+        shouldRequestOfferOnBroadcastActive("es", { es: true, en: false, ro: false }, false, undefined)
+      ).toBe(true);
+    });
+
+    it("returns false when stream is already healthy", () => {
+      expect(
+        shouldRequestOfferOnBroadcastActive("es", { es: true, en: false, ro: false }, true, "connected")
+      ).toBe(false);
+    });
+  });
+
+  describe("computeWsReconnectDelayMs", () => {
+    it("uses exponential backoff capped at 30s", () => {
+      expect(computeWsReconnectDelayMs(1)).toBe(1000);
+      expect(computeWsReconnectDelayMs(5)).toBe(16000);
+      expect(computeWsReconnectDelayMs(10)).toBe(30000);
+    });
+  });
+
+  describe("shouldShowLivePlayerWhileListening", () => {
+    it("keeps player visible while recovering", () => {
+      expect(shouldShowLivePlayerWhileListening("es", "reconnecting")).toBe(true);
+      expect(shouldShowLivePlayerWhileListening("es", "error")).toBe(true);
+      expect(shouldShowLivePlayerWhileListening(null, "idle")).toBe(false);
+    });
+  });
+
+  describe("isServerShutdownMessage", () => {
+    it("detects server shutdown payloads", () => {
+      expect(isServerShutdownMessage({ type: "server-shutdown" })).toBe(true);
+      expect(isServerShutdownMessage({ type: "ping" })).toBe(false);
+    });
+  });
+
+  describe("shouldRequestOfferOnWsReconnect", () => {
+    it("returns true when user was listening", () => {
+      expect(shouldRequestOfferOnWsReconnect(true)).toBe(true);
+    });
+
+    it("returns false when no language selected", () => {
+      expect(shouldRequestOfferOnWsReconnect(false)).toBe(false);
     });
   });
 
