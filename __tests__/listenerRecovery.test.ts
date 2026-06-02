@@ -5,10 +5,13 @@ import {
   HEARTBEAT_IDLE_MS,
   HEARTBEAT_LISTENING_ANDROID_MS,
   HEARTBEAT_LISTENING_IOS_MS,
+  getReconnectDebounceMs,
   RECONNECT_DEBOUNCE_MS,
+  RECONNECT_DEBOUNCE_LISTENING_MS,
   shouldRecoverOnForeground,
   shouldReconnectAfterIceGrace,
   shouldRegisterListenerOnHeartbeat,
+  shouldSendBackgroundKeepalive,
   shouldSendForegroundRecoveryPing,
   shouldTriggerIceReconnect,
   parseServerShutdownRetryMs,
@@ -79,6 +82,18 @@ describe("listenerRecovery", () => {
     });
   });
 
+  describe("shouldSendBackgroundKeepalive", () => {
+    it("returns true when listening and app moves to background", () => {
+      expect(shouldSendBackgroundKeepalive(true, "background")).toBe(true);
+      expect(shouldSendBackgroundKeepalive(true, "inactive")).toBe(true);
+    });
+
+    it("returns false when not listening or staying active", () => {
+      expect(shouldSendBackgroundKeepalive(false, "background")).toBe(false);
+      expect(shouldSendBackgroundKeepalive(true, "active")).toBe(false);
+    });
+  });
+
   describe("canAttemptReconnect", () => {
     it("debounces rapid reconnect attempts", () => {
       const now = 10_000;
@@ -91,17 +106,23 @@ describe("listenerRecovery", () => {
   });
 
   describe("shouldRecoverOnForeground", () => {
-    it("returns true on iOS when listening and ICE is missing or broken", () => {
-      expect(shouldRecoverOnForeground("ios", true, undefined)).toBe(true);
-      expect(shouldRecoverOnForeground("ios", true, "failed")).toBe(true);
+    it("returns true when listening and ICE is missing or broken", () => {
+      expect(shouldRecoverOnForeground(true, undefined)).toBe(true);
+      expect(shouldRecoverOnForeground(true, "failed")).toBe(true);
+      expect(shouldRecoverOnForeground(true, "disconnected")).toBe(true);
     });
 
-    it("returns false on Android or when ICE is healthy", () => {
-      expect(shouldRecoverOnForeground("android", true, "failed")).toBe(
-        false
-      );
-      expect(shouldRecoverOnForeground("ios", true, "connected")).toBe(false);
-      expect(shouldRecoverOnForeground("ios", false, "failed")).toBe(false);
+    it("returns false when not listening or ICE is healthy", () => {
+      expect(shouldRecoverOnForeground(false, "failed")).toBe(false);
+      expect(shouldRecoverOnForeground(true, "connected")).toBe(false);
+      expect(shouldRecoverOnForeground(true, "completed")).toBe(false);
+    });
+  });
+
+  describe("getReconnectDebounceMs", () => {
+    it("uses shorter debounce while listening", () => {
+      expect(getReconnectDebounceMs(true)).toBe(RECONNECT_DEBOUNCE_LISTENING_MS);
+      expect(getReconnectDebounceMs(false)).toBe(RECONNECT_DEBOUNCE_MS);
     });
   });
 
@@ -160,10 +181,16 @@ describe("listenerRecovery", () => {
   });
 
   describe("computeWsReconnectDelayMs", () => {
-    it("uses exponential backoff capped at 30s", () => {
-      expect(computeWsReconnectDelayMs(1)).toBe(1000);
-      expect(computeWsReconnectDelayMs(5)).toBe(16000);
-      expect(computeWsReconnectDelayMs(10)).toBe(30000);
+    it("uses exponential backoff capped at 30s when idle", () => {
+      expect(computeWsReconnectDelayMs(1, false)).toBe(1000);
+      expect(computeWsReconnectDelayMs(5, false)).toBe(16000);
+      expect(computeWsReconnectDelayMs(10, false)).toBe(30000);
+    });
+
+    it("uses faster backoff capped at 10s while listening", () => {
+      expect(computeWsReconnectDelayMs(1, true)).toBe(500);
+      expect(computeWsReconnectDelayMs(5, true)).toBe(8000);
+      expect(computeWsReconnectDelayMs(10, true)).toBe(10000);
     });
   });
 

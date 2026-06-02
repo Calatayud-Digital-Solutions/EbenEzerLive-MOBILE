@@ -42,6 +42,7 @@ import {
   canAttemptReconnect,
   computeWsReconnectDelayMs,
   getHeartbeatIntervalMs,
+  getReconnectDebounceMs,
   ICE_DISCONNECTED_GRACE_MS,
   isServerShutdownMessage,
   resolveStreamRecoveryAction,
@@ -50,6 +51,7 @@ import {
   shouldRequestOfferOnBroadcastActive,
   shouldRequestOfferOnWsReconnect,
   shouldShowLivePlayerWhileListening,
+  shouldSendBackgroundKeepalive,
   shouldSendForegroundRecoveryPing,
   parseServerShutdownRetryMs,
   buildRegisterListenerPayload,
@@ -599,7 +601,10 @@ function AppScreen() {
       return;
     }
     wsReconnectAttemptRef.current += 1;
-    const delay = computeWsReconnectDelayMs(wsReconnectAttemptRef.current);
+    const delay = computeWsReconnectDelayMs(
+      wsReconnectAttemptRef.current,
+      Boolean(languageRef.current)
+    );
     logStreamEvent(
       "info",
       "ws.reconnect.scheduled",
@@ -826,7 +831,13 @@ function AppScreen() {
       if (!language) return;
 
       const now = Date.now();
-      if (!canAttemptReconnect(iceReconnectAttemptRef.current, now)) {
+      if (
+        !canAttemptReconnect(
+          iceReconnectAttemptRef.current,
+          now,
+          getReconnectDebounceMs(true)
+        )
+      ) {
         logStreamEvent("verbose", "webrtc.reconnect.debounced", { reason });
         return;
       }
@@ -1006,15 +1017,14 @@ function AppScreen() {
           registerListener();
         }
         const iceState = getIceConnectionState();
-        if (shouldRecoverOnForeground(Platform.OS, Boolean(language), iceState)) {
+        if (shouldRecoverOnForeground(Boolean(language), iceState)) {
           void reconnectWebRtc("foreground-recovery");
         }
-      } else if (
-        Platform.OS === "ios" &&
-        language &&
-        (next === "background" || next === "inactive")
-      ) {
+      } else if (shouldSendBackgroundKeepalive(Boolean(language), next)) {
         sendWsPing("background");
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          registerListener();
+        }
       }
 
       if (Platform.OS === "android") {

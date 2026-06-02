@@ -1,8 +1,9 @@
 export const HEARTBEAT_IDLE_MS = 4 * 60 * 1000;
-export const HEARTBEAT_LISTENING_ANDROID_MS = 25 * 1000;
+export const HEARTBEAT_LISTENING_ANDROID_MS = 15 * 1000;
 export const HEARTBEAT_LISTENING_IOS_MS = 15 * 1000;
 export const ICE_DISCONNECTED_GRACE_MS = 8000;
 export const RECONNECT_DEBOUNCE_MS = 5000;
+export const RECONNECT_DEBOUNCE_LISTENING_MS = 2000;
 
 export type AppStateName = "active" | "background" | "inactive" | "unknown";
 
@@ -44,6 +45,16 @@ export function shouldSendForegroundRecoveryPing(
   return wasBackground && nextState === "active";
 }
 
+export function shouldSendBackgroundKeepalive(
+  hasLanguage: boolean,
+  nextState: AppStateName
+): boolean {
+  if (!hasLanguage) {
+    return false;
+  }
+  return nextState === "background" || nextState === "inactive";
+}
+
 export function canAttemptReconnect(
   lastAttemptAt: number,
   now: number,
@@ -52,12 +63,15 @@ export function canAttemptReconnect(
   return now - lastAttemptAt >= debounceMs;
 }
 
+export function getReconnectDebounceMs(isListening: boolean): number {
+  return isListening ? RECONNECT_DEBOUNCE_LISTENING_MS : RECONNECT_DEBOUNCE_MS;
+}
+
 export function shouldRecoverOnForeground(
-  platformOs: string,
   isListening: boolean,
   iceState: string | undefined
 ): boolean {
-  if (platformOs !== "ios" || !isListening) {
+  if (!isListening) {
     return false;
   }
   if (!iceState) {
@@ -68,10 +82,18 @@ export function shouldRecoverOnForeground(
 
 export const SERVER_SHUTDOWN_DEFAULT_RETRY_MS = 3000;
 export const WS_RECONNECT_MAX_DELAY_MS = 30_000;
+export const WS_RECONNECT_MAX_DELAY_LISTENING_MS = 10_000;
 
-export function computeWsReconnectDelayMs(attempt: number): number {
+export function computeWsReconnectDelayMs(
+  attempt: number,
+  isListening: boolean = false
+): number {
   const normalized = Math.max(1, attempt);
-  return Math.min(WS_RECONNECT_MAX_DELAY_MS, 2 ** (normalized - 1) * 1000);
+  const maxDelay = isListening
+    ? WS_RECONNECT_MAX_DELAY_LISTENING_MS
+    : WS_RECONNECT_MAX_DELAY_MS;
+  const baseMs = isListening ? 500 : 1000;
+  return Math.min(maxDelay, 2 ** (normalized - 1) * baseMs);
 }
 
 export function shouldRequestOfferOnBroadcastActive(
