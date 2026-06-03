@@ -17,6 +17,8 @@ import {
   parseServerShutdownRetryMs,
   shouldRequestOfferOnWsReconnect,
   resolveStreamRecoveryAction,
+  resolveLivePlayerReconnectingVisible,
+  shouldReconnectWebRtc,
   shouldRequestOfferOnBroadcastActive,
   shouldShowLivePlayerWhileListening,
   isServerShutdownMessage,
@@ -106,16 +108,45 @@ describe("listenerRecovery", () => {
   });
 
   describe("shouldRecoverOnForeground", () => {
-    it("returns true when listening and ICE is missing or broken", () => {
-      expect(shouldRecoverOnForeground(true, undefined)).toBe(true);
-      expect(shouldRecoverOnForeground(true, "failed")).toBe(true);
-      expect(shouldRecoverOnForeground(true, "disconnected")).toBe(true);
+    it("returns true when listening and ICE is missing or broken without stream", () => {
+      expect(shouldRecoverOnForeground(true, undefined, false)).toBe(true);
+      expect(shouldRecoverOnForeground(true, "failed", false)).toBe(true);
+      expect(shouldRecoverOnForeground(true, "disconnected", false)).toBe(true);
     });
 
-    it("returns false when not listening or ICE is healthy", () => {
-      expect(shouldRecoverOnForeground(false, "failed")).toBe(false);
-      expect(shouldRecoverOnForeground(true, "connected")).toBe(false);
-      expect(shouldRecoverOnForeground(true, "completed")).toBe(false);
+    it("returns false when not listening or playback is healthy", () => {
+      expect(shouldRecoverOnForeground(false, "failed", false)).toBe(false);
+      expect(shouldRecoverOnForeground(true, "connected", true)).toBe(false);
+      expect(shouldRecoverOnForeground(true, "completed", true)).toBe(false);
+      expect(shouldRecoverOnForeground(true, undefined, true)).toBe(false);
+    });
+  });
+
+  describe("resolveLivePlayerReconnectingVisible", () => {
+    it("hides reconnecting label while audio stream is healthy", () => {
+      expect(
+        resolveLivePlayerReconnectingVisible("reconnecting", true, "connected")
+      ).toBe(false);
+      expect(
+        resolveLivePlayerReconnectingVisible("requesting", true, "completed")
+      ).toBe(false);
+    });
+
+    it("shows reconnecting when stream is missing or ICE is broken", () => {
+      expect(
+        resolveLivePlayerReconnectingVisible("reconnecting", false, "connected")
+      ).toBe(true);
+      expect(
+        resolveLivePlayerReconnectingVisible("connecting", false, undefined)
+      ).toBe(true);
+    });
+  });
+
+  describe("shouldReconnectWebRtc", () => {
+    it("skips peer teardown when stream and ICE are healthy", () => {
+      expect(shouldReconnectWebRtc(true, "connected")).toBe(false);
+      expect(shouldReconnectWebRtc(true, "disconnected")).toBe(true);
+      expect(shouldReconnectWebRtc(false, "connected")).toBe(true);
     });
   });
 

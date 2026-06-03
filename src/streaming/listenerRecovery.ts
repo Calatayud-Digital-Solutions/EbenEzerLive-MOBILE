@@ -69,15 +69,47 @@ export function getReconnectDebounceMs(isListening: boolean): number {
 
 export function shouldRecoverOnForeground(
   isListening: boolean,
-  iceState: string | undefined
+  iceState: string | undefined,
+  hasRemoteStream: boolean
 ): boolean {
   if (!isListening) {
     return false;
   }
+  if (hasRemoteStream && isIceConnectionHealthy(iceState)) {
+    return false;
+  }
   if (!iceState) {
-    return true;
+    return !hasRemoteStream;
   }
   return shouldTriggerIceReconnect(iceState);
+}
+
+export function shouldReconnectWebRtc(
+  hasRemoteStream: boolean,
+  iceConnectionState: string | undefined
+): boolean {
+  if (hasRemoteStream && isIceConnectionHealthy(iceConnectionState)) {
+    return false;
+  }
+  return true;
+}
+
+export function resolveLivePlayerReconnectingVisible(
+  status: string,
+  hasRemoteStream: boolean,
+  iceConnectionState: string | undefined
+): boolean {
+  if (status === "error") {
+    return true;
+  }
+  if (hasRemoteStream && isIceConnectionHealthy(iceConnectionState)) {
+    return false;
+  }
+  return (
+    status === "reconnecting" ||
+    status === "requesting" ||
+    status === "connecting"
+  );
 }
 
 export const SERVER_SHUTDOWN_DEFAULT_RETRY_MS = 3000;

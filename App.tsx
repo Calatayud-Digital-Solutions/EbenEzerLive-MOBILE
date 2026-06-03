@@ -46,6 +46,8 @@ import {
   ICE_DISCONNECTED_GRACE_MS,
   isServerShutdownMessage,
   resolveStreamRecoveryAction,
+  resolveLivePlayerReconnectingVisible,
+  shouldReconnectWebRtc,
   shouldRecoverOnForeground,
   shouldReconnectAfterIceGrace,
   shouldRequestOfferOnBroadcastActive,
@@ -843,10 +845,33 @@ function AppScreen() {
       }
       iceReconnectAttemptRef.current = now;
 
-      logStreamEvent("warn", "webrtc.reconnect.started", {
-        reason,
-        language,
-      });
+      const hasStream = Boolean(remoteStreamRef.current);
+      const iceState = getIceConnectionState();
+      const wsOnlyRecovery =
+        !shouldReconnectWebRtc(hasStream, iceState);
+
+      logStreamEvent(
+        wsOnlyRecovery ? "info" : "warn",
+        wsOnlyRecovery ? "webrtc.ws_only_recovery" : "webrtc.reconnect.started",
+        { reason, language, iceState }
+      );
+
+      allowWSReconnect.current = true;
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+        createSocket();
+        const connected = await waitForSocketConnection();
+        if (!connected) {
+          setStatus("reconnecting");
+          return;
+        }
+      }
+
+      registerListener();
+      if (wsOnlyRecovery) {
+        setStatus("connected");
+        return;
+      }
+
       setStatus("reconnecting");
 
       if (iceDisconnectTimerRef.current) {
@@ -863,19 +888,16 @@ function AppScreen() {
       setRemoteStream(null);
       candidateQueueRef.current = [];
 
-      allowWSReconnect.current = true;
-      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-        createSocket();
-        const connected = await waitForSocketConnection();
-        if (!connected) {
-          setStatus("reconnecting");
-          return;
-        }
-      }
-
       requestOffer();
     },
-    [language, createSocket, waitForSocketConnection, requestOffer]
+    [
+      language,
+      createSocket,
+      waitForSocketConnection,
+      requestOffer,
+      registerListener,
+      getIceConnectionState,
+    ]
   );
 
   useEffect(() => {
@@ -1017,7 +1039,13 @@ function AppScreen() {
           registerListener();
         }
         const iceState = getIceConnectionState();
-        if (shouldRecoverOnForeground(Boolean(language), iceState)) {
+        if (
+          shouldRecoverOnForeground(
+            Boolean(language),
+            iceState,
+            Boolean(remoteStreamRef.current)
+          )
+        ) {
           void reconnectWebRtc("foreground-recovery");
         }
       } else if (shouldSendBackgroundKeepalive(Boolean(language), next)) {
@@ -1234,13 +1262,11 @@ function AppScreen() {
             speakerOn={speakerOn}
             toggleSpeaker={toggleSpeaker}
             emergencyAudioReset={emergencyAudioReset}
-            isReconnecting={
-              status === "reconnecting" ||
-              status === "requesting" ||
-              status === "connecting" ||
-              status === "error" ||
-              !remoteStream
-            }
+            isReconnecting={resolveLivePlayerReconnectingVisible(
+              status,
+              Boolean(remoteStream),
+              getIceConnectionState()
+            )}
           />
         )}
         <View style={styles.serviceTimesBar}>
