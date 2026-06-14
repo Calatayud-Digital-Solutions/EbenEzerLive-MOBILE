@@ -51,7 +51,7 @@ import {
   shouldRecoverOnForeground,
   shouldReconnectAfterIceGrace,
   shouldRequestOfferOnBroadcastActive,
-  shouldRequestOfferOnWsReconnect,
+  resolveWsReconnectRecoveryAction,
   shouldShowLivePlayerWhileListening,
   shouldSendBackgroundKeepalive,
   shouldSendForegroundRecoveryPing,
@@ -668,6 +668,9 @@ function AppScreen() {
         language: languageRef.current,
         clientId: clientIdRef.current,
       });
+      if (languageRef.current) {
+        setStatus((current) => (current === "idle" ? "idle" : "reconnecting"));
+      }
       if (!allowWSReconnect.current) {
         return;
       }
@@ -760,15 +763,32 @@ function AppScreen() {
     prevWsStateRef.current = wsState;
     if (wasReconnecting && wsRef.current?.readyState === WebSocket.OPEN) {
       sendIdentify();
-      if (language && shouldRequestOfferOnWsReconnect(true)) {
+      if (language) {
+        const recoveryAction = resolveWsReconnectRecoveryAction(
+          true,
+          Boolean(remoteStreamRef.current),
+          getIceConnectionState()
+        );
         logStreamEvent("info", "ws.reconnected", {
           language,
           clientId: clientIdRef.current,
+          recoveryAction,
         });
-        requestOffer();
+        if (recoveryAction === "register-listener") {
+          registerListener();
+        } else if (recoveryAction === "request-offer") {
+          requestOffer();
+        }
       }
     }
-  }, [wsState, language, sendIdentify, requestOffer]);
+  }, [
+    wsState,
+    language,
+    sendIdentify,
+    requestOffer,
+    registerListener,
+    getIceConnectionState,
+  ]);
 
   // Heartbeat: platform-aware interval; includes listener registration while listening.
   useEffect(() => {
