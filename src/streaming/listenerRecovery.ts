@@ -1,6 +1,6 @@
 export const HEARTBEAT_IDLE_MS = 4 * 60 * 1000;
-export const HEARTBEAT_LISTENING_ANDROID_MS = 15 * 1000;
-export const HEARTBEAT_LISTENING_IOS_MS = 15 * 1000;
+export const HEARTBEAT_LISTENING_ANDROID_MS = 10 * 1000;
+export const HEARTBEAT_LISTENING_IOS_MS = 10 * 1000;
 export const ICE_DISCONNECTED_GRACE_MS = 8000;
 export const RECONNECT_DEBOUNCE_MS = 5000;
 export const RECONNECT_DEBOUNCE_LISTENING_MS = 2000;
@@ -121,6 +121,9 @@ export function computeWsReconnectDelayMs(
   isListening: boolean = false
 ): number {
   const normalized = Math.max(1, attempt);
+  if (isListening && normalized === 1) {
+    return 0;
+  }
   const maxDelay = isListening
     ? WS_RECONNECT_MAX_DELAY_LISTENING_MS
     : WS_RECONNECT_MAX_DELAY_MS;
@@ -188,6 +191,22 @@ export function isIceConnectionHealthy(
 
 export function shouldRequestOfferOnWsReconnect(hasLanguage: boolean): boolean {
   return hasLanguage;
+}
+
+export function resolveWsReconnectRecoveryAction(
+  hasLanguage: boolean,
+  hasRemoteStream: boolean,
+  iceConnectionState: string | undefined
+): ListenerRegistrationAction {
+  if (!hasLanguage) {
+    return "none";
+  }
+  return resolveStreamRecoveryAction(
+    true,
+    true,
+    hasRemoteStream,
+    iceConnectionState
+  );
 }
 
 export function resolveListenerRegistrationAction(

@@ -23,6 +23,7 @@ import {
   shouldShowLivePlayerWhileListening,
   isServerShutdownMessage,
   resolveListenerRegistrationAction,
+  resolveWsReconnectRecoveryAction,
   isIceConnectionHealthy,
   buildRegisterListenerPayload,
   buildRequestOfferPayload,
@@ -219,9 +220,33 @@ describe("listenerRecovery", () => {
     });
 
     it("uses faster backoff capped at 10s while listening", () => {
-      expect(computeWsReconnectDelayMs(1, true)).toBe(500);
+      expect(computeWsReconnectDelayMs(1, true)).toBe(0);
+      expect(computeWsReconnectDelayMs(2, true)).toBe(1000);
       expect(computeWsReconnectDelayMs(5, true)).toBe(8000);
       expect(computeWsReconnectDelayMs(10, true)).toBe(10000);
+    });
+  });
+
+  describe("resolveWsReconnectRecoveryAction", () => {
+    it("registers listener when stream and ICE are healthy after ws reconnect", () => {
+      expect(
+        resolveWsReconnectRecoveryAction(true, true, "connected")
+      ).toBe("register-listener");
+    });
+
+    it("requests offer when stream is missing or ICE is broken", () => {
+      expect(
+        resolveWsReconnectRecoveryAction(true, false, undefined)
+      ).toBe("request-offer");
+      expect(
+        resolveWsReconnectRecoveryAction(true, true, "disconnected")
+      ).toBe("request-offer");
+    });
+
+    it("returns none when user is not listening", () => {
+      expect(
+        resolveWsReconnectRecoveryAction(false, false, undefined)
+      ).toBe("none");
     });
   });
 
