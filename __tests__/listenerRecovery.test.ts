@@ -25,6 +25,7 @@ import {
   resolveListenerRegistrationAction,
   resolveWsReconnectRecoveryAction,
   isIceConnectionHealthy,
+  resolveAndroidAudioServiceAction,
   buildRegisterListenerPayload,
   buildRequestOfferPayload,
   buildStopListeningPayload,
@@ -94,6 +95,25 @@ describe("listenerRecovery", () => {
     it("returns false when not listening or staying active", () => {
       expect(shouldSendBackgroundKeepalive(false, "background")).toBe(false);
       expect(shouldSendBackgroundKeepalive(true, "active")).toBe(false);
+    });
+  });
+
+  describe("resolveAndroidAudioServiceAction", () => {
+    it("keeps Android audio services running while listening in background", () => {
+      expect(resolveAndroidAudioServiceAction(true, "active")).toBe(
+        "keep-running"
+      );
+      expect(resolveAndroidAudioServiceAction(true, "background")).toBe(
+        "keep-running"
+      );
+      expect(resolveAndroidAudioServiceAction(true, "inactive")).toBe(
+        "keep-running"
+      );
+    });
+
+    it("stops Android audio services when not listening", () => {
+      expect(resolveAndroidAudioServiceAction(false, "background")).toBe("stop");
+      expect(resolveAndroidAudioServiceAction(false, "active")).toBe("stop");
     });
   });
 

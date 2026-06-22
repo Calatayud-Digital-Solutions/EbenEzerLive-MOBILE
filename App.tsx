@@ -51,6 +51,7 @@ import {
   shouldRecoverOnForeground,
   shouldReconnectAfterIceGrace,
   shouldRequestOfferOnBroadcastActive,
+  resolveAndroidAudioServiceAction,
   resolveWsReconnectRecoveryAction,
   shouldShowLivePlayerWhileListening,
   shouldSendBackgroundKeepalive,
@@ -696,7 +697,9 @@ function AppScreen() {
                   };
                   setActiveLangs(active);
                   logStreamEvent("verbose", "signaling.active_broadcasts", {
-                    active,
+                    activeEs: active.es,
+                    activeEn: active.en,
+                    activeRo: active.ro,
                   });
 
                   const lang = languageRef.current;
@@ -1077,20 +1080,27 @@ function AppScreen() {
 
       if (Platform.OS === "android") {
         try {
+          const audioServiceAction = resolveAndroidAudioServiceAction(
+            Boolean(language),
+            next
+          );
+
+          if (audioServiceAction === "keep-running") {
+            safeAudioModuleCall('startAudioMonitoring');
+            safeAudioModuleCall('startCleanupService');
+            startForegroundService().catch(console.warn);
+          } else {
+            safeAudioModuleCall('stopAudioMonitoring');
+            safeAudioModuleCall('stopCleanupService');
+          }
+
           if (nextAppState === "active") {
             InCallManager.setSpeakerphoneOn(speakerOn);
             console.log(
               "🔊 Audio restaurado según estado speakerOn:",
               speakerOn
             );
-          } else if (
-            nextAppState === "background" ||
-            nextAppState === "inactive"
-          ) {
-            safeAudioModuleCall('stopAudioMonitoring');
-            safeAudioModuleCall('stopCleanupService');
-            console.log("🔇 Audio services stopped, altavoz intacto");
-         }
+          }
         } catch (e) {
           console.warn("⚠️ Error manejando AppState audio:", e);
         }
@@ -1102,7 +1112,7 @@ function AppScreen() {
       handleAppStateChange
     );
     return () => subscription?.remove();
-  }, [language, speakerOn, sendWsPing, reconnectWebRtc, registerListener, getIceConnectionState]);
+  }, [language, speakerOn, sendWsPing, reconnectWebRtc, registerListener, getIceConnectionState, startForegroundService]);
 
   // --- Limpieza completa al desmontar ---
   const cleanupAudioOnUnmount = useCallback(() => {

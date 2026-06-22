@@ -16,6 +16,8 @@ export type IceConnectionState =
   | "failed"
   | "closed";
 
+export type AndroidAudioServiceAction = "keep-running" | "stop";
+
 export function getHeartbeatIntervalMs(
   isListening: boolean,
   platformOs: string
@@ -53,6 +55,23 @@ export function shouldSendBackgroundKeepalive(
     return false;
   }
   return nextState === "background" || nextState === "inactive";
+}
+
+export function resolveAndroidAudioServiceAction(
+  isListening: boolean,
+  nextState: AppStateName
+): AndroidAudioServiceAction {
+  if (!isListening) {
+    return "stop";
+  }
+  if (
+    nextState === "active" ||
+    nextState === "background" ||
+    nextState === "inactive"
+  ) {
+    return "keep-running";
+  }
+  return "stop";
 }
 
 export function canAttemptReconnect(

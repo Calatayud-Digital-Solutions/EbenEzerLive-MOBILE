@@ -3,7 +3,6 @@ package com.localmodules.audiomode
 import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
-import android.app.ActivityManager
 import android.os.Handler
 import android.os.Looper
 import com.facebook.react.bridge.ReactApplicationContext
@@ -15,10 +14,7 @@ class AudioModeModule(reactContext: ReactApplicationContext) :
 
     private val audioManager: AudioManager =
         reactContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-    
-    private val activityManager: ActivityManager =
-        reactContext.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-    
+
     private val handler = Handler(Looper.getMainLooper())
     private var cleanupRunnable: Runnable? = null
     private var isMonitoring = false
@@ -59,21 +55,16 @@ class AudioModeModule(reactContext: ReactApplicationContext) :
         
         cleanupRunnable = Runnable {
             try {
-                // Verificar si la app está en primer plano
-                if (!isAppInForeground()) {
-                    // App no está en primer plano, limpiar audio
-                    resetAudioState()
-                }
+                audioManager.mode = AudioManager.MODE_NORMAL
             } catch (e: Exception) {
-                // Log error pero continuar
+                // Keep monitoring active even if Android rejects a transient audio update.
             }
-            
-            // Programar siguiente verificación
+
             if (isMonitoring) {
-                handler.postDelayed(cleanupRunnable!!, 2000) // Cada 2 segundos
+                handler.postDelayed(cleanupRunnable!!, 2000)
             }
         }
-        
+
         handler.postDelayed(cleanupRunnable!!, 2000)
     }
 
@@ -82,20 +73,6 @@ class AudioModeModule(reactContext: ReactApplicationContext) :
         isMonitoring = false
         cleanupRunnable?.let { handler.removeCallbacks(it) }
         cleanupRunnable = null
-    }
-
-    private fun isAppInForeground(): Boolean {
-        return try {
-            val runningTasks = activityManager.getRunningTasks(1)
-            if (runningTasks.isNotEmpty()) {
-                val topActivity = runningTasks[0].topActivity
-                topActivity?.packageName == reactApplicationContext.packageName
-            } else {
-                false
-            }
-        } catch (e: Exception) {
-            false
-        }
     }
 
     @ReactMethod
