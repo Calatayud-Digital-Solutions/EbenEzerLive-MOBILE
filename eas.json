@@ -9,7 +9,6 @@
       "distribution": "internal"
     },
     "preview": {
-      "channel": "preview",
       "distribution": "internal",
       "environment": "production",
       "android": {
@@ -18,11 +17,9 @@
     },
     "test": {
       "extends": "production",
-      "channel": "test",
       "environment": "production"
     },
     "production": {
-      "channel": "production",
       "environment": "production",
       "android": {
         "buildType": "app-bundle",
