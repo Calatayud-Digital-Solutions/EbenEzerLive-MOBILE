@@ -3,7 +3,7 @@
     "name": "Traducción en vivo",
     "slug": "EbenEzerLiveExpo",
     "scheme": "eben-ezer-live",
-    "version": "1.0.8",
+    "version": "1.0.9",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -27,7 +27,7 @@
         "NSMicrophoneUsageDescription": "Esta app usa el micrófono para audio en transmisiones en vivo.",
         "NSLocalNetworkUsageDescription": "Esta app necesita acceso a la red local para conectarse a servidores de streaming y WebRTC."
       },
-      "buildNumber": "29",
+      "buildNumber": "30",
       "bundleIdentifier": "com.cds.eben-ezer-live"
     },
     "android": {
@@ -41,7 +41,7 @@
         "FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ],
       "playStoreUrl": "https://play.google.com/store/apps/details?id=com.cds.eben_ezer_live",
-      "versionCode": 23
+      "versionCode": 24
     },
     "owner": "calaespi",
     "extra": {
