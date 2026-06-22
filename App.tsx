@@ -1092,6 +1092,7 @@ function AppScreen() {
           } else {
             safeAudioModuleCall('stopAudioMonitoring');
             safeAudioModuleCall('stopCleanupService');
+            stopForegroundService().catch(console.warn);
           }
 
           if (nextAppState === "active") {

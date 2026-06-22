@@ -5,6 +5,7 @@ import android.content.Intent
 import android.media.AudioManager
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
@@ -18,6 +19,7 @@ class AudioModeModule(reactContext: ReactApplicationContext) :
     private val handler = Handler(Looper.getMainLooper())
     private var cleanupRunnable: Runnable? = null
     private var isMonitoring = false
+    private val tag = "AudioModeModule"
 
     override fun getName(): String = "AudioModeModule"
 
@@ -50,29 +52,35 @@ class AudioModeModule(reactContext: ReactApplicationContext) :
 
     @ReactMethod
     fun startAudioMonitoring() {
-        if (isMonitoring) return
-        isMonitoring = true
-        
-        cleanupRunnable = Runnable {
-            try {
-                audioManager.mode = AudioManager.MODE_NORMAL
-            } catch (e: Exception) {
-                // Keep monitoring active even if Android rejects a transient audio update.
+        handler.post {
+            if (isMonitoring) return@post
+            isMonitoring = true
+
+            val monitorRunnable = Runnable {
+                try {
+                    audioManager.mode = AudioManager.MODE_NORMAL
+                } catch (e: Exception) {
+                    Log.w(tag, "Error updating audio mode during monitoring", e)
+                }
+
+                val currentRunnable = cleanupRunnable
+                if (isMonitoring && currentRunnable != null) {
+                    handler.postDelayed(currentRunnable, 2000)
+                }
             }
 
-            if (isMonitoring) {
-                handler.postDelayed(cleanupRunnable!!, 2000)
-            }
+            cleanupRunnable = monitorRunnable
+            handler.postDelayed(monitorRunnable, 2000)
         }
-
-        handler.postDelayed(cleanupRunnable!!, 2000)
     }
 
     @ReactMethod
     fun stopAudioMonitoring() {
-        isMonitoring = false
-        cleanupRunnable?.let { handler.removeCallbacks(it) }
-        cleanupRunnable = null
+        handler.post {
+            isMonitoring = false
+            cleanupRunnable?.let { handler.removeCallbacks(it) }
+            cleanupRunnable = null
+        }
     }
 
     @ReactMethod

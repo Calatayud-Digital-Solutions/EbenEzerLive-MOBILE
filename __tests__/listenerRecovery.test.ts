@@ -115,6 +115,10 @@ describe("listenerRecovery", () => {
       expect(resolveAndroidAudioServiceAction(false, "background")).toBe("stop");
       expect(resolveAndroidAudioServiceAction(false, "active")).toBe("stop");
     });
+
+    it("stops Android audio services for unknown app states", () => {
+      expect(resolveAndroidAudioServiceAction(true, "unknown")).toBe("stop");
+    });
   });
 
   describe("canAttemptReconnect", () => {
