@@ -17,6 +17,14 @@ export type IceConnectionState =
   | "closed";
 
 export type AndroidAudioServiceAction = "keep-running" | "stop";
+export type ListenerPlatform = "web" | "android" | "ios" | "unknown";
+
+export function resolveListenerPlatform(platformOs: string): ListenerPlatform {
+  if (platformOs === "android" || platformOs === "ios" || platformOs === "web") {
+    return platformOs;
+  }
+  return "unknown";
+}
 
 export function getHeartbeatIntervalMs(
   isListening: boolean,
@@ -251,24 +259,28 @@ export function shouldRegisterListenerOnHeartbeat(
 
 export function buildRegisterListenerPayload(
   language: string,
-  clientId: string
+  clientId: string,
+  platform: ListenerPlatform
 ): {
   type: "register-listener";
   language: string;
   clientId: string;
+  platform: ListenerPlatform;
 } {
-  return { type: "register-listener", language, clientId };
+  return { type: "register-listener", language, clientId, platform };
 }
 
 export function buildRequestOfferPayload(
   language: string,
-  clientId: string
+  clientId: string,
+  platform: ListenerPlatform
 ): {
   type: "request-offer";
   language: string;
   clientId: string;
+  platform: ListenerPlatform;
 } {
-  return { type: "request-offer", language, clientId };
+  return { type: "request-offer", language, clientId, platform };
 }
 
 export function buildStopListeningPayload(

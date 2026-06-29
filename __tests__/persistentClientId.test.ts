@@ -37,9 +37,10 @@ describe("persistentClientId", () => {
   });
 
   it("builds identify payload", () => {
-    expect(buildIdentifyPayload("abc-123")).toEqual({
+    expect(buildIdentifyPayload("abc-123", "android")).toEqual({
       type: "identify",
       clientId: "abc-123",
+      platform: "android",
     });
   });
 });
