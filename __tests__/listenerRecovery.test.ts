@@ -29,6 +29,7 @@ import {
   buildRegisterListenerPayload,
   buildRequestOfferPayload,
   buildStopListeningPayload,
+  resolveListenerPlatform,
 } from "../src/streaming/listenerRecovery";
 
 describe("listenerRecovery", () => {
@@ -337,22 +338,33 @@ describe("listenerRecovery", () => {
   });
 
   describe("buildRegisterListenerPayload", () => {
-    it("builds register-listener message payload with clientId", () => {
-      expect(buildRegisterListenerPayload("en", "client-1")).toEqual({
+    it("builds register-listener message payload with clientId and platform", () => {
+      expect(buildRegisterListenerPayload("en", "client-1", "android")).toEqual({
         type: "register-listener",
         language: "en",
         clientId: "client-1",
+        platform: "android",
       });
     });
   });
 
   describe("buildRequestOfferPayload", () => {
-    it("builds request-offer message payload with clientId", () => {
-      expect(buildRequestOfferPayload("es", "client-2")).toEqual({
+    it("builds request-offer message payload with clientId and platform", () => {
+      expect(buildRequestOfferPayload("es", "client-2", "ios")).toEqual({
         type: "request-offer",
         language: "es",
         clientId: "client-2",
+        platform: "ios",
       });
+    });
+  });
+
+  describe("resolveListenerPlatform", () => {
+    it("keeps supported listener platforms and falls back for others", () => {
+      expect(resolveListenerPlatform("android")).toBe("android");
+      expect(resolveListenerPlatform("ios")).toBe("ios");
+      expect(resolveListenerPlatform("web")).toBe("web");
+      expect(resolveListenerPlatform("macos")).toBe("unknown");
     });
   });
 

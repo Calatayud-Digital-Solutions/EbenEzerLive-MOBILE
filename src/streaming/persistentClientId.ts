@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Crypto from "expo-crypto";
+import type { ListenerPlatform } from "./listenerRecovery";
 
 export const PERSISTENT_CLIENT_ID_STORAGE_KEY =
   "ebenezer.listener.persistentClientId";
@@ -7,6 +8,7 @@ export const PERSISTENT_CLIENT_ID_STORAGE_KEY =
 export type IdentifyPayload = {
   type: "identify";
   clientId: string;
+  platform: ListenerPlatform;
 };
 
 export async function getOrCreatePersistentClientId(
@@ -22,6 +24,9 @@ export async function getOrCreatePersistentClientId(
   return clientId;
 }
 
-export function buildIdentifyPayload(clientId: string): IdentifyPayload {
-  return { type: "identify", clientId };
+export function buildIdentifyPayload(
+  clientId: string,
+  platform: ListenerPlatform
+): IdentifyPayload {
+  return { type: "identify", clientId, platform };
 }

@@ -60,6 +60,7 @@ import {
   buildRegisterListenerPayload,
   buildRequestOfferPayload,
   buildStopListeningPayload,
+  resolveListenerPlatform,
   type AppStateName,
 } from "./src/streaming/listenerRecovery";
 import {
@@ -155,6 +156,8 @@ const TURN_CREDENTIAL_FINAL =
   infoPlist.TURN_CREDENTIAL ||
   "";
 
+const LISTENER_PLATFORM = resolveListenerPlatform(Platform.OS);
+
 interface CandidatePayload {
   candidate: {
     candidate?: string;
@@ -246,8 +249,13 @@ function AppScreen() {
     ) {
       return;
     }
-    wsRef.current.send(JSON.stringify(buildIdentifyPayload(clientId)));
-    logStreamEvent("verbose", "ws.identify.sent", { clientId });
+    wsRef.current.send(
+      JSON.stringify(buildIdentifyPayload(clientId, LISTENER_PLATFORM))
+    );
+    logStreamEvent("verbose", "ws.identify.sent", {
+      clientId,
+      platform: LISTENER_PLATFORM,
+    });
   }, []);
 
   useEffect(() => {
@@ -383,7 +391,9 @@ function AppScreen() {
       return;
     logStreamEvent("verbose", "signaling.request_offer", { language });
     wsRef.current?.send(
-      JSON.stringify(buildRequestOfferPayload(language, clientId))
+      JSON.stringify(
+        buildRequestOfferPayload(language, clientId, LISTENER_PLATFORM)
+      )
     );
     setStatus("requesting");
   }, [language]);
@@ -400,7 +410,9 @@ function AppScreen() {
     }
     logStreamEvent("verbose", "signaling.register_listener", { language });
     wsRef.current.send(
-      JSON.stringify(buildRegisterListenerPayload(language, clientId))
+      JSON.stringify(
+        buildRegisterListenerPayload(language, clientId, LISTENER_PLATFORM)
+      )
     );
   }, [language]);
 
